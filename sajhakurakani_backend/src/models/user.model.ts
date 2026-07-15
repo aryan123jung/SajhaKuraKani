@@ -3,12 +3,14 @@ import {UserType} from "../types/user.type.ts";
 
 const userMongoSchema: Schema = new Schema(
     {
-        fullname: {type:String, required: true},
-        email: {type:String, required: true},
-        username: {type:String, required: true,unique: true},
-        password: {type: String, required: true},
-        bio: {type: String, required: false, default: ""},
-        profileUrl: {type: String, required: false}
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+        email: { type: String, required: true, unique: true },
+        username: { type: String, required: true, unique: true },
+        password: { type: String, required: true },
+        role: { type: String, enum: ["user", "admin"], default: "user" },
+        profileUrl: { type: String, required: false },
+        coverUrl: { type: String, required: false },
     },
     {
         timestamps: true,
