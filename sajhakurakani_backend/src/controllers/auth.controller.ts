@@ -227,7 +227,13 @@ export class AuthController {
                 );
             }
 
-            await userService.sendResetPasswordEmail(parsedData.data.email);
+            await userService.sendResetPasswordEmail(
+                parsedData.data.email,
+                req.ip,
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
             return res.status(200).json(
                 {
                     success: true,
@@ -241,6 +247,19 @@ export class AuthController {
         }
     }
 
+    async validateResetPasswordToken(req: Request, res: Response) {
+        try {
+            const token = req.params.token;
+            const data = await userService.validateResetPasswordToken(token, req.ip);
+            return res.status(200).json(
+                { success: true, message: "Reset link is valid", data }
+            );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            )
+        }
+    }
 
 
     async resetPassword(req: Request, res: Response) {
@@ -253,7 +272,14 @@ export class AuthController {
             }
 
             const token = req.params.token;
-            await userService.resetPassword(token, parsedData.data.newPassword);
+            await userService.resetPassword(
+                token,
+                parsedData.data.newPassword,
+                req.ip,
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
             return res.status(200).json(
                 { success: true, message: "Password has been reset successfully." }
             );

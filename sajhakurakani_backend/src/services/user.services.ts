@@ -13,6 +13,8 @@ import {
   JWT_EXPIRES_IN,
   JWT_ISSUER,
   JWT_SECRET,
+  RESET_PASSWORD_ENFORCE_IP_MATCH,
+  RESET_TOKEN_EXPIRY_MS,
   TOTP_ISSUER,
 } from "../configs";
 import path from "path";
@@ -21,13 +23,14 @@ import crypto from "crypto";
 import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
 import { IUser } from "../models/user.model";
+import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
 import { decryptText, encryptText } from "../utils/crypto.util";
 import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
 
 const userRepository = new UserRepository();
+const passwordResetTokenRepository = new PasswordResetTokenRepository();
 const PASSWORD_HASH_ROUNDS = 12;
-const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 const PASSWORD_TOTP_CHALLENGE_EXPIRES_IN = "5m";
 const PASSWORD_TOTP_CHALLENGE_TYPE = "password_login_totp";
 const GOOGLE_TOTP_CHALLENGE_EXPIRES_IN = "10m";
@@ -78,6 +81,9 @@ const createResetToken = () => {
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   return { rawToken, tokenHash };
 };
+const hashResetMetadata = (value?: string) =>
+  value ? crypto.createHash("sha256").update(value).digest("hex") : undefined;
+const truncateUserAgent = (value?: string) => value?.slice(0, 512);
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const normalizeUsername = (username: string) => username.trim().toLowerCase();
@@ -99,6 +105,18 @@ const buildGoogleAuthUrl = (state: string) => {
 };
 
 export class UserService {
+  private logSecurityEvent(event: string, details: Record<string, unknown>) {
+    console.info(
+      JSON.stringify({
+        level: "info",
+        category: "security",
+        event,
+        timestamp: new Date().toISOString(),
+        ...details,
+      })
+    );
+  }
+
   private createJwtForUser(user: IUser) {
     const payload = {
       id: user._id.toString(),
@@ -560,7 +578,7 @@ export class UserService {
     return sanitizeUser(updatedUser);
   }
 
-  async sendResetPasswordEmail(email?: string) {
+  async sendResetPasswordEmail(email?: string, requestIp?: string, userAgent?: string) {
     if (!email) {
       throw new HttpError(400, "Email is required");
     }
@@ -569,39 +587,114 @@ export class UserService {
     const user = await userRepository.getUserByEmail(normalizedEmail, true);
 
     if (!user) {
+      this.logSecurityEvent("password_reset_requested_for_unknown_email", {
+        email: normalizedEmail,
+      });
       return;
     }
 
     const { rawToken, tokenHash } = createResetToken();
     const resetLink = `${CLIENT_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    const requestedIpHash = hashResetMetadata(requestIp);
+    const requestedUserAgent = truncateUserAgent(userAgent);
 
-    await userRepository.updateUser(user._id.toString(), {
-      resetPasswordTokenHash: tokenHash,
-      resetPasswordExpiresAt: new Date(Date.now() + RESET_TOKEN_EXPIRY_MS),
+    await passwordResetTokenRepository.invalidateActiveTokensForUser(user._id.toString());
+    await passwordResetTokenRepository.createToken({
+      userId: user._id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + RESET_TOKEN_EXPIRY_MS),
+      requestedIpHash,
+      requestedUserAgent,
     });
 
     const html = `
       <p>You requested a password reset for SajhaKuraKani.</p>
       <p>Open this link to reset your password:</p>
       <p><a href="${resetLink}">${resetLink}</a></p>
-      <p>This link expires in 1 hour and can only be used once.</p>
+      <p>This link expires in 5 minutes and can only be used once.</p>
       <p>If you did not request this, you can safely ignore this email.</p>
     `;
 
-    const text = `Reset your password with this one-time link (expires in 1 hour): ${resetLink}`;
+    const text = `Reset your password with this one-time link (expires in 5 minutes): ${resetLink}`;
 
     await sendEmail(user.email, "Password Reset", html, text);
+    this.logSecurityEvent("password_reset_requested", {
+      userId: user._id.toString(),
+      email: user.email,
+      requestedIpHash,
+    });
   }
 
-  async resetPassword(token?: string, newPassword?: string) {
+  async validateResetPasswordToken(token?: string, requestIp?: string) {
+    if (!token) {
+      throw new HttpError(400, "Token is required");
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const resetRecord = await passwordResetTokenRepository.getTokenByHash(tokenHash);
+
+    if (
+      !resetRecord ||
+      resetRecord.usedAt ||
+      resetRecord.expiresAt.getTime() < Date.now()
+    ) {
+      throw new HttpError(400, "Invalid or expired token");
+    }
+
+    const requestIpHash = hashResetMetadata(requestIp);
+    if (
+      RESET_PASSWORD_ENFORCE_IP_MATCH &&
+      resetRecord.requestedIpHash &&
+      requestIpHash &&
+      resetRecord.requestedIpHash !== requestIpHash
+    ) {
+      throw new HttpError(400, "Invalid or expired token");
+    }
+
+    const user = await userRepository.getUserById(resetRecord.userId.toString(), true);
+    if (!user) {
+      throw new HttpError(400, "Invalid or expired token");
+    }
+
+    return {
+      email: user.email,
+      expiresAt: resetRecord.expiresAt,
+    };
+  }
+
+  async resetPassword(
+    token?: string,
+    newPassword?: string,
+    requestIp?: string,
+    userAgent?: string
+  ) {
     if (!token || !newPassword) {
       throw new HttpError(400, "Token and new password are required");
     }
 
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const user = await userRepository.getUserByResetPasswordTokenHash(tokenHash);
+    const resetRecord = await passwordResetTokenRepository.getTokenByHash(tokenHash);
 
-    if (!user || !user.resetPasswordExpiresAt || user.resetPasswordExpiresAt.getTime() < Date.now()) {
+    if (
+      !resetRecord ||
+      resetRecord.usedAt ||
+      resetRecord.expiresAt.getTime() < Date.now()
+    ) {
+      throw new HttpError(400, "Invalid or expired token");
+    }
+
+    const requestIpHash = hashResetMetadata(requestIp);
+    if (
+      RESET_PASSWORD_ENFORCE_IP_MATCH &&
+      resetRecord.requestedIpHash &&
+      requestIpHash &&
+      resetRecord.requestedIpHash !== requestIpHash
+    ) {
+      throw new HttpError(400, "Invalid or expired token");
+    }
+
+    const user = await userRepository.getUserById(resetRecord.userId.toString(), true);
+    if (!user) {
       throw new HttpError(400, "Invalid or expired token");
     }
 
@@ -616,8 +709,29 @@ export class UserService {
       passwordChangedAt: new Date(),
       failedLoginAttempts: 0,
       lockUntil: undefined,
-      resetPasswordTokenHash: undefined,
-      resetPasswordExpiresAt: undefined,
+    });
+
+    await passwordResetTokenRepository.markTokenUsed(
+      resetRecord._id.toString(),
+      requestIpHash,
+      truncateUserAgent(userAgent)
+    );
+    await passwordResetTokenRepository.invalidateActiveTokensForUser(user._id.toString());
+
+    const html = `
+      <p>Your SajhaKuraKani password was changed successfully.</p>
+      <p>If you made this change, you can safely ignore this email.</p>
+      <p>If you did not reset your password, secure your account immediately.</p>
+    `;
+    const text =
+      "Your SajhaKuraKani password was changed successfully. If you did not make this change, secure your account immediately.";
+
+    await sendEmail(user.email, "Password Reset Confirmation", html, text);
+    this.logSecurityEvent("password_reset_completed", {
+      userId: user._id.toString(),
+      email: user.email,
+      requestedIpHash: resetRecord.requestedIpHash,
+      usedIpHash: requestIpHash,
     });
   }
 

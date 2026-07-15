@@ -56,6 +56,7 @@ router.post(
     passwordResetLimiter,
     authController.requestPasswordChange
 );
+router.get("/reset-password/:token/validate", passwordResetLimiter, authController.validateResetPasswordToken);
 router.post("/reset-password/:token", passwordResetLimiter, authController.resetPassword);
 
 export default router;

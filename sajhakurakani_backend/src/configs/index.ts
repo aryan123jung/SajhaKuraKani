@@ -26,6 +26,8 @@ export const GLOBAL_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(process.env.GL
 export const AUTH_RATE_LIMIT_WINDOW_MS: number = parseNumber(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000);
 export const AUTH_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS, 25);
 export const RESET_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(process.env.RESET_RATE_LIMIT_MAX_REQUESTS, 5);
+export const RESET_TOKEN_EXPIRY_MS: number = parseNumber(process.env.RESET_TOKEN_EXPIRY_MS, 5 * 60 * 1000);
+export const RESET_PASSWORD_ENFORCE_IP_MATCH: boolean = process.env.RESET_PASSWORD_ENFORCE_IP_MATCH === "true";
 export const TOTP_ISSUER: string = process.env.TOTP_ISSUER || 'SajhaKuraKani';
 export const GOOGLE_CLIENT_ID: string = process.env.GOOGLE_CLIENT_ID || '';
 export const GOOGLE_CLIENT_SECRET: string = process.env.GOOGLE_CLIENT_SECRET || '';
