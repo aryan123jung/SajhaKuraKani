@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "../configs";
+import { JWT_AUDIENCE, JWT_ISSUER, JWT_SECRET } from "../configs";
 import { HttpError } from "../errors/http-error";
 import { IUser } from "../models/user.model";
 import { UserRepository } from "../repositories/user.repository";
@@ -42,7 +42,10 @@ export const authorizedMiddleware = async (
     let decodedToken: AuthTokenPayload;
 
     try {
-      decodedToken = jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+      decodedToken = jwt.verify(token, JWT_SECRET, {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      }) as AuthTokenPayload;
     } catch {
       return res.status(401).json({
         success: false,
@@ -54,8 +57,21 @@ export const authorizedMiddleware = async (
       throw new HttpError(401, "Authorization token could not be verified");
     }
 
-    const user = await userRepository.getUserById(decodedToken.id);
+    const userWithSecurityFields = await userRepository.getUserById(decodedToken.id, true);
 
+    if (!userWithSecurityFields) {
+      throw new HttpError(401, "Authorized user was not found");
+    }
+
+    if (
+      userWithSecurityFields.passwordChangedAt &&
+      decodedToken.iat &&
+      decodedToken.iat * 1000 < userWithSecurityFields.passwordChangedAt.getTime()
+    ) {
+      throw new HttpError(401, "Authorization token is no longer valid");
+    }
+
+    const user = await userRepository.getUserById(decodedToken.id);
     if (!user) {
       throw new HttpError(401, "Authorized user was not found");
     }

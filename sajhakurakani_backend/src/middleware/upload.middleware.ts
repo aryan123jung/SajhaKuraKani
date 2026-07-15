@@ -5,6 +5,13 @@ import fs from "fs";
 import { Request } from "express";
 import { HttpError } from "../errors/http-error";
 
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
+
+const isAllowedExtension = (fileName: string, allowedExtensions: Set<string>) => {
+  return allowedExtensions.has(path.extname(fileName).toLowerCase());
+};
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     let folder = "uploads";
@@ -49,19 +56,25 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) => {
+  const isImageMime = file.mimetype.startsWith("image/");
+  const isVideoMime = file.mimetype.startsWith("video/");
+
   if (
     file.fieldname === "profileUrl" ||
     file.fieldname === "coverUrl" ||
     file.fieldname === "communityProfileUrl"
   ) {
-    if (!file.mimetype.startsWith("image/")) {
+    if (!isImageMime || !isAllowedExtension(file.originalname, IMAGE_EXTENSIONS)) {
       return cb(new HttpError(400, "Only image files are allowed"));
     }
   } else if (file.fieldname === "media") {
-    if (!file.mimetype.startsWith("image/") && !file.mimetype.startsWith("video/")) {
+    if (
+      (!isImageMime || !isAllowedExtension(file.originalname, IMAGE_EXTENSIONS)) &&
+      (!isVideoMime || !isAllowedExtension(file.originalname, VIDEO_EXTENSIONS))
+    ) {
       return cb(new HttpError(400, "Only image or video files are allowed for posts"));
     }
-  } else if (!file.mimetype.startsWith("image/")) {
+  } else if (!isImageMime || !isAllowedExtension(file.originalname, IMAGE_EXTENSIONS)) {
     return cb(new HttpError(400, "Only image files are allowed"));
   }
 

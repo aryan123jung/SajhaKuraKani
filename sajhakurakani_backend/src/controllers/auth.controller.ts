@@ -1,7 +1,15 @@
 import { UserService } from "../services/user.services";
 import { Request, Response } from "express";
-import z, { success } from "zod";
-import { CreateUserDto, LoginUserDto, UpdateUserDto } from "../dtos/user.dtos";
+import z from "zod";
+import {
+    CreateUserDto,
+    GoogleOAuthExchangeDto,
+    LoginUserDto,
+    RequestPasswordResetDto,
+    ResetPasswordDto,
+    VerifyTotpDto,
+    UpdateUserDto
+} from "../dtos/user.dtos";
 import { QueryParams } from "../types/query.type";
 
 let userService = new UserService();
@@ -150,10 +158,9 @@ export class AuthController {
                 return res.status(404).json({ success: false, message: "User not found" });
             }
 
-            const userObj = updatedUser.toObject();
+            const userObj = { ...updatedUser };
 
             // only file name in db
-            const host = `${req.protocol}://${req.get("host")}`;
             userObj.profileUrl = userObj.profileUrl ? `${userObj.profileUrl}` : null;
             userObj.coverUrl = userObj.coverUrl ? `${userObj.coverUrl}` : null;
 
@@ -174,13 +181,20 @@ export class AuthController {
 
     async requestPasswordChange(req: Request, res: Response) {
         try {
-            const { email } = req.body;
-            const user = await userService.sendResetPasswordEmail(email);
+            const parsedData = RequestPasswordResetDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            await userService.sendResetPasswordEmail(parsedData.data.email);
             return res.status(200).json(
-                { success: true, 
-                    data: user,
-                    message: "Password reset email sent" }
-            )
+                {
+                    success: true,
+                    message: "If an account exists for that email, a password reset link has been sent"
+                }
+            );
         } catch (error: Error | any) {
             return res.status(error.statusCode || 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
@@ -192,13 +206,128 @@ export class AuthController {
 
     async resetPassword(req: Request, res: Response) {
         try {
+            const parsedData = ResetPasswordDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
 
-           const token = req.params.token;
-            const { newPassword } = req.body;
-            await userService.resetPassword(token, newPassword);
+            const token = req.params.token;
+            await userService.resetPassword(token, parsedData.data.newPassword);
             return res.status(200).json(
                 { success: true, message: "Password has been reset successfully." }
             );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async getGoogleOAuthUrl(req: Request, res: Response) {
+        try {
+            const data = await userService.getGoogleOAuthUrl();
+            return res.status(200).json({ success: true, data });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async exchangeGoogleOAuthCode(req: Request, res: Response) {
+        try {
+            const parsedData = GoogleOAuthExchangeDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            const data = await userService.loginWithGoogleOAuth(
+                parsedData.data.code,
+                parsedData.data.state
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Google login successful",
+                data: data.user,
+                token: data.token
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async setupTotp(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const data = await userService.startTotpSetup(userId);
+            return res.status(200).json({
+                success: true,
+                message: "TOTP setup initialized",
+                data
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async enableTotp(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedData = VerifyTotpDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            await userService.enableTotp(userId, parsedData.data.code);
+            return res.status(200).json({
+                success: true,
+                message: "TOTP has been enabled successfully"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async disableTotp(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedData = VerifyTotpDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            await userService.disableTotp(userId, parsedData.data.code);
+            return res.status(200).json({
+                success: true,
+                message: "TOTP has been disabled successfully"
+            });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
