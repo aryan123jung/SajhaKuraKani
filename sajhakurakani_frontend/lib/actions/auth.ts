@@ -3,29 +3,10 @@
 import { redirect } from "next/navigation";
 import { getGoogleOAuthUrl, login } from "../api/auth";
 import { setAuthToken } from "../cookie";
-
-export type LoginActionState = {
-  success: boolean;
-  message: string;
-  fields: {
-    email: string;
-    password: string;
-    totpCode: string;
-  };
-};
-
-export const initialLoginActionState: LoginActionState = {
-  success: false,
-  message: "",
-  fields: {
-    email: "",
-    password: "",
-    totpCode: "",
-  },
-};
+import type { LoginActionState } from "./auth-state";
 
 export async function loginAction(
-  _previousState: LoginActionState,
+  previousState: LoginActionState,
   formData: FormData
 ): Promise<LoginActionState> {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -36,6 +17,7 @@ export async function loginAction(
     return {
       success: false,
       message: "Email and password are required.",
+      requiresTotp: previousState.requiresTotp,
       fields: {
         email,
         password: "",
@@ -53,10 +35,19 @@ export async function loginAction(
 
     await setAuthToken(response.token as string);
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to sign in right now.";
+    const requiresTotp =
+      previousState.requiresTotp ||
+      message.toLowerCase().includes("totp code is required");
+
     return {
       success: false,
       message:
-        error instanceof Error ? error.message : "Unable to sign in right now.",
+        message.toLowerCase().includes("totp code is required")
+          ? "This account has two-factor authentication enabled. Enter your TOTP code to continue."
+          : message,
+      requiresTotp,
       fields: {
         email,
         password: "",
