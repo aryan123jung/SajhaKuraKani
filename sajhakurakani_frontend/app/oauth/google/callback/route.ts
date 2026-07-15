@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeGoogleOAuthCode } from "@/lib/api/auth";
 import {
   AUTH_COOKIE_NAME,
-  GOOGLE_TOTP_PENDING_COOKIE_NAME,
+  TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
 } from "@/lib/cookie";
 
 function redirectWithError(request: NextRequest, message: string) {
@@ -35,12 +35,13 @@ export async function GET(request: NextRequest) {
     const response = await exchangeGoogleOAuthCode({ code, state });
 
     if (response.data.requiresTotp && response.data.preAuthToken) {
-      const redirectUrl = new URL("/oauth/google/totp", request.url);
+      const redirectUrl = new URL("/verify-2fa", request.url);
       redirectUrl.searchParams.set("email", response.data.user.email);
+      redirectUrl.searchParams.set("method", "google");
       const redirectResponse = NextResponse.redirect(redirectUrl);
 
       redirectResponse.cookies.set(
-        GOOGLE_TOTP_PENDING_COOKIE_NAME,
+        TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
         response.data.preAuthToken,
         {
           httpOnly: true,

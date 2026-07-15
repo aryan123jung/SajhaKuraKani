@@ -6,7 +6,6 @@ import axiosInstance from "./axios";
 export type LoginPayload = {
   email: string;
   password: string;
-  totpCode?: string;
 };
 
 export type RegisterPayload = {
@@ -50,6 +49,12 @@ type GoogleOAuthExchangeData = {
   preAuthToken?: string;
 };
 
+type LoginResponseData = {
+  user: AuthUser;
+  requiresTotp: boolean;
+  preAuthToken?: string;
+};
+
 type TotpSetupData = {
   manualEntryKey: string;
   otpAuthUrl: string;
@@ -69,12 +74,16 @@ const getSafeErrorMessage = (
   const status = error.response?.status;
 
   if (context === "login") {
-    if (responseMessage.includes("totp code is required")) {
-      return "This account needs a verification code. Continue with your 6-digit TOTP code.";
+    if (responseMessage.includes("totp verification is required")) {
+      return "This account needs a second verification step to complete sign-in.";
     }
 
     if (responseMessage.includes("invalid totp code")) {
       return "The 6-digit authenticator code is incorrect.";
+    }
+
+    if (responseMessage.includes("two-factor verification session")) {
+      return "Your two-factor verification session expired. Please sign in again.";
     }
 
     if (status === 423 || responseMessage.includes("temporarily locked")) {
@@ -124,12 +133,12 @@ const getSafeErrorMessage = (
 
 export async function login(payload: LoginPayload) {
   try {
-    const response = await axiosInstance.post<ApiResponse<AuthUser>>(
+    const response = await axiosInstance.post<ApiResponse<LoginResponseData>>(
       "/api/auth/login",
       payload
     );
 
-    if (!response.data.token) {
+    if (!response.data.data.requiresTotp && !response.data.token) {
       throw new Error("Authentication token was not returned by the server.");
     }
 
@@ -225,6 +234,32 @@ export async function verifyGoogleOAuthTotp(payload: {
         error,
         "Unable to complete Google sign-in right now.",
         "oauth"
+      )
+    );
+  }
+}
+
+export async function verifyLoginTotp(payload: {
+  preAuthToken: string;
+  code: string;
+}) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<AuthUser>>(
+      "/api/auth/login/verify-totp",
+      payload
+    );
+
+    if (!response.data.token) {
+      throw new Error("Authentication token was not returned by the server.");
+    }
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getSafeErrorMessage(
+        error,
+        "Unable to complete sign-in right now.",
+        "login"
       )
     );
   }

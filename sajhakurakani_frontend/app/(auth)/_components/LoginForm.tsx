@@ -58,9 +58,9 @@ export default function LoginForm({
               Sign in to your account
             </h2>
             <p className="text-sm leading-6 text-white/55">
-              Use your account credentials first. If this account has
-              two-factor authentication enabled, we&apos;ll ask for the 6-digit
-              authenticator code next.
+              Start with your email and password. If this account has
+              two-factor authentication enabled, we&apos;ll take you to a separate
+              verification step next.
             </p>
           </div>
 
@@ -108,26 +108,6 @@ export default function LoginForm({
                 className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-sm text-white outline-none ring-0 transition focus:border-[#ff9166] focus:bg-white/8"
               />
             </div>
-
-            {safeState.requiresTotp ? (
-              <div className="space-y-2">
-                <label
-                  htmlFor="totpCode"
-                  className="text-xs font-medium uppercase tracking-[0.24em] text-white/48"
-                >
-                  TOTP Code
-                </label>
-                <input
-                  id="totpCode"
-                  name="totpCode"
-                  inputMode="numeric"
-                  maxLength={6}
-                  defaultValue={safeState.fields.totpCode}
-                  placeholder="Enter your 6-digit code"
-                  className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-sm text-white outline-none ring-0 transition focus:border-[#ff9166] focus:bg-white/8"
-                />
-              </div>
-            ) : null}
 
             {notice ? (
               <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">

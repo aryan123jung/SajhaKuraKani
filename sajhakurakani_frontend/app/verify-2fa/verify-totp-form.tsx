@@ -2,41 +2,54 @@
 
 import { useActionState } from "react";
 import {
-  cancelGoogleTotpAction,
-  completeGoogleTotpAction,
+  cancelTotpLoginAction,
+  completeTotpLoginAction,
 } from "@/lib/actions/auth";
 import {
-  initialGoogleTotpActionState,
+  initialVerifyTotpActionState,
 } from "@/lib/actions/auth-state";
 
-type GoogleTotpFormProps = {
+type VerifyTotpFormProps = {
   email?: string;
+  method: "google" | "password";
 };
 
-export default function GoogleTotpForm({ email }: GoogleTotpFormProps) {
+export default function VerifyTotpForm({
+  email,
+  method,
+}: VerifyTotpFormProps) {
   const [state, formAction, isPending] = useActionState(
-    completeGoogleTotpAction,
-    initialGoogleTotpActionState
+    completeTotpLoginAction,
+    initialVerifyTotpActionState
   );
+
+  const heading =
+    method === "google"
+      ? "Complete your Google sign-in"
+      : "Complete your sign-in";
+  const description =
+    method === "google"
+      ? "Google already verified your account. Enter the current 6-digit code from your authenticator app to finish signing in."
+      : "Your password was accepted. Enter the current 6-digit code from your authenticator app to finish signing in.";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(255,186,143,0.2),_transparent_26%),linear-gradient(135deg,#120f12_0%,#1d1a1f_40%,#221814_100%)] px-4 py-8 text-white sm:px-6">
       <div className="w-full max-w-md rounded-[34px] border border-white/10 bg-[rgba(20,18,20,0.82)] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:p-8">
         <div className="mb-8 space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-[#ffb089]">
-            Google Sign-In Check
+            Two-Factor Verification
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
-            Confirm your authenticator code
+            {heading}
           </h1>
           <p className="text-sm leading-6 text-white/55">
-            Google verified your account. Enter the current 6-digit code from
-            your authenticator app to finish signing in
-            {email ? ` for ${email}` : ""}.
+            {description} {email ? `Account: ${email}.` : ""}
           </p>
         </div>
 
         <form action={formAction} className="space-y-5">
+          <input type="hidden" name="method" value={method} />
+
           <div className="space-y-2">
             <label
               htmlFor="code"
@@ -67,12 +80,12 @@ export default function GoogleTotpForm({ email }: GoogleTotpFormProps) {
               disabled={isPending}
               className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7683c_0%,#ff9f6e_100%)] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(247,104,60,0.35)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
             >
-              {isPending ? "Verifying..." : "Complete Sign-In"}
+              {isPending ? "Verifying..." : "Verify And Continue"}
             </button>
 
             <button
               type="submit"
-              formAction={cancelGoogleTotpAction}
+              formAction={cancelTotpLoginAction}
               className="inline-flex w-full items-center justify-center rounded-2xl border border-white/12 bg-white/4 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-white/8"
             >
               Cancel

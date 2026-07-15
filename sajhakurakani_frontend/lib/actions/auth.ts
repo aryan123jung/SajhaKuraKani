@@ -6,67 +6,61 @@ import {
   getGoogleOAuthUrl,
   login,
   register,
+  verifyLoginTotp,
   verifyGoogleOAuthTotp,
 } from "../api/auth";
 import {
   clearAuthToken,
-  clearGoogleTotpPreAuthToken,
-  getGoogleTotpPreAuthToken,
+  clearTwoFactorPreAuthToken,
+  getTwoFactorPreAuthToken,
   setAuthToken,
+  setTwoFactorPreAuthToken,
 } from "../cookie";
 import type {
-  GoogleTotpActionState,
   LoginActionState,
   RegisterActionState,
+  VerifyTotpActionState,
 } from "./auth-state";
 
 export async function loginAction(
-  previousState: LoginActionState,
+  _previousState: LoginActionState,
   formData: FormData
 ): Promise<LoginActionState> {
+  void _previousState;
+
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
-  const totpCode = String(formData.get("totpCode") || "").trim();
 
   if (!email || !password) {
     return {
       success: false,
       message: "Email and password are required.",
-      requiresTotp: previousState.requiresTotp,
       fields: {
         email,
         password: "",
-        totpCode,
       },
     };
   }
 
   try {
-    const response = await login({
-      email,
-      password,
-      totpCode: totpCode || undefined,
-    });
+    const response = await login({ email, password });
+
+    if (response.data.requiresTotp && response.data.preAuthToken) {
+      await setTwoFactorPreAuthToken(response.data.preAuthToken);
+      redirect(`/verify-2fa?email=${encodeURIComponent(email)}&method=password`);
+    }
 
     await setAuthToken(response.token as string);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to sign in right now.";
-    const requiresTotp =
-      previousState.requiresTotp ||
-      message.toLowerCase().includes("totp code is required");
+    unstable_rethrow(error);
 
     return {
       success: false,
       message:
-        message.toLowerCase().includes("totp code is required")
-          ? "This account has two-factor authentication enabled. Enter your TOTP code to continue."
-          : message,
-      requiresTotp,
+        error instanceof Error ? error.message : "Unable to sign in right now.",
       fields: {
         email,
         password: "",
-        totpCode,
       },
     };
   }
@@ -101,21 +95,24 @@ export async function startGoogleLoginAction() {
 
 export async function logoutAction() {
   await clearAuthToken();
-  await clearGoogleTotpPreAuthToken();
+  await clearTwoFactorPreAuthToken();
   redirect("/login");
 }
 
-export async function completeGoogleTotpAction(
-  _previousState: GoogleTotpActionState,
+export async function completeTotpLoginAction(
+  _previousState: VerifyTotpActionState,
   formData: FormData
-): Promise<GoogleTotpActionState> {
+): Promise<VerifyTotpActionState> {
+  void _previousState;
+
   const code = String(formData.get("code") || "").trim();
-  const preAuthToken = await getGoogleTotpPreAuthToken();
+  const method = String(formData.get("method") || "password").trim();
+  const preAuthToken = await getTwoFactorPreAuthToken();
 
   if (!preAuthToken) {
     return {
       success: false,
-      message: "Your Google sign-in verification session expired. Start again.",
+      message: "Your two-factor verification session expired. Start again.",
       code: "",
     };
   }
@@ -129,16 +126,19 @@ export async function completeGoogleTotpAction(
   }
 
   try {
-    const response = await verifyGoogleOAuthTotp({ preAuthToken, code });
+    const response =
+      method === "google"
+        ? await verifyGoogleOAuthTotp({ preAuthToken, code })
+        : await verifyLoginTotp({ preAuthToken, code });
     await setAuthToken(response.token as string);
-    await clearGoogleTotpPreAuthToken();
+    await clearTwoFactorPreAuthToken();
   } catch (error) {
     return {
       success: false,
       message:
         error instanceof Error
           ? error.message
-          : "Unable to complete Google sign-in right now.",
+          : "Unable to complete sign-in right now.",
       code: "",
     };
   }
@@ -146,8 +146,8 @@ export async function completeGoogleTotpAction(
   redirect("/");
 }
 
-export async function cancelGoogleTotpAction() {
-  await clearGoogleTotpPreAuthToken();
+export async function cancelTotpLoginAction() {
+  await clearTwoFactorPreAuthToken();
   redirect("/login");
 }
 

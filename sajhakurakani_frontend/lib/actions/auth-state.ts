@@ -1,22 +1,18 @@
 export type LoginActionState = {
   success: boolean;
   message: string;
-  requiresTotp: boolean;
   fields: {
     email: string;
     password: string;
-    totpCode: string;
   };
 };
 
 export const initialLoginActionState: LoginActionState = {
   success: false,
   message: "",
-  requiresTotp: false,
   fields: {
     email: "",
     password: "",
-    totpCode: "",
   },
 };
 
@@ -46,17 +42,21 @@ export const initialRegisterActionState: RegisterActionState = {
   },
 };
 
-export type GoogleTotpActionState = {
+export type VerifyTotpActionState = {
   success: boolean;
   message: string;
   code: string;
 };
 
-export const initialGoogleTotpActionState: GoogleTotpActionState = {
+export const initialVerifyTotpActionState: VerifyTotpActionState = {
   success: false,
   message: "",
   code: "",
 };
+
+// Backward-compatible aliases for renamed verification state.
+export type GoogleTotpActionState = VerifyTotpActionState;
+export const initialGoogleTotpActionState = initialVerifyTotpActionState;
 
 export type TotpSetupActionState = {
   success: boolean;
