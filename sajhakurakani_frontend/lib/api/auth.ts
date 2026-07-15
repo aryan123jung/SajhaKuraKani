@@ -60,6 +60,11 @@ type TotpSetupData = {
   otpAuthUrl: string;
 };
 
+type ResetPasswordValidationData = {
+  email: string;
+  expiresAt: string;
+};
+
 const getSafeErrorMessage = (
   error: unknown,
   fallback: string,
@@ -91,7 +96,7 @@ const getSafeErrorMessage = (
     }
 
     if (status === 401 || responseMessage.includes("invalid email or password")) {
-      return "The email or password you entered is incorrect.";
+      return "The credential you entered is incorrect.";
     }
   }
 
@@ -318,6 +323,80 @@ export async function disableTotp(code: string) {
         ? error.message
         : "Unable to disable two-factor authentication right now."
     );
+  }
+}
+
+export async function requestPasswordReset(email: string) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<null>>(
+      "/api/auth/send-reset-password-email",
+      { email }
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 429) {
+      throw new Error("Too many reset requests were made. Please wait a bit and try again.");
+    }
+
+    throw new Error("Unable to send a password reset email right now.");
+  }
+}
+
+export async function validatePasswordResetToken(token: string) {
+  try {
+    const response = await axiosInstance.get<ApiResponse<ResetPasswordValidationData>>(
+      `/api/auth/reset-password/${encodeURIComponent(token)}/validate`
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const responseMessage =
+        ((error.response?.data as { message?: string } | undefined)?.message || "").toLowerCase();
+
+      if (status === 400 || responseMessage.includes("invalid or expired token")) {
+        throw new Error("This reset link is invalid or has expired. Request a new one.");
+      }
+
+      if (status === 429) {
+        throw new Error("Too many reset attempts were made. Please wait a bit and try again.");
+      }
+    }
+
+    throw new Error("Unable to verify this reset link right now.");
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<null>>(
+      `/api/auth/reset-password/${encodeURIComponent(token)}`,
+      { newPassword }
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const responseMessage =
+        ((error.response?.data as { message?: string } | undefined)?.message || "").toLowerCase();
+
+      if (status === 400 || responseMessage.includes("invalid or expired token")) {
+        throw new Error("This reset link is invalid or has expired. Request a new one.");
+      }
+
+      if (responseMessage.includes("new password must be different")) {
+        throw new Error("Choose a new password that is different from the current one.");
+      }
+
+      if (status === 429) {
+        throw new Error("Too many reset attempts were made. Please wait a bit and try again.");
+      }
+    }
+
+    throw new Error("Unable to reset your password right now.");
   }
 }
 

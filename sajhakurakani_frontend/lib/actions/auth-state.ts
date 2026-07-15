@@ -83,3 +83,33 @@ export const initialTotpCodeActionState: TotpCodeActionState = {
   message: "",
   code: "",
 };
+
+export type RequestPasswordResetActionState = {
+  success: boolean;
+  message: string;
+  email: string;
+};
+
+export const initialRequestPasswordResetActionState: RequestPasswordResetActionState = {
+  success: false,
+  message: "",
+  email: "",
+};
+
+export type ResetPasswordActionState = {
+  success: boolean;
+  message: string;
+  fields: {
+    newPassword: string;
+    confirmPassword: string;
+  };
+};
+
+export const initialResetPasswordActionState: ResetPasswordActionState = {
+  success: false,
+  message: "",
+  fields: {
+    newPassword: "",
+    confirmPassword: "",
+  },
+};

@@ -133,7 +133,7 @@ export default function LoginForm({
                 disabled={isPending}
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7683c_0%,#ff9f6e_100%)] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(247,104,60,0.35)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
               >
-                {isPending ? "Signing you in..." : "Enter Secure Workspace"}
+                {isPending ? "Signing you in..." : "Sign in"}
               </button>
 
               <button
