@@ -28,6 +28,7 @@ const passwordResetLimiter = createRateLimitMiddleware({
 
 router.post("/register", authLimiter, authController.createUser)
 router.post("/login", authLimiter, authController.loginUser)
+router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
 router.get("/oauth/google/url", authLimiter, authController.getGoogleOAuthUrl)
 router.post("/oauth/google/exchange", authLimiter, authController.exchangeGoogleOAuthCode)
 router.post("/oauth/google/verify-totp", authLimiter, authController.verifyGoogleOAuthTotp)

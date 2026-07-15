@@ -24,7 +24,6 @@ export type CreateUserDto = z.infer<typeof CreateUserDto>;
 export const LoginUserDto = z.object({
     email: z.email().trim().toLowerCase(),
     password: z.string().min(1).max(128),
-    totpCode: z.string().regex(/^\d{6}$/).optional(),
 });
 export type LoginUserDto = z.infer<typeof LoginUserDto>;
 
@@ -66,3 +65,8 @@ export const VerifyGoogleOAuthTotpDto = z.object({
 });
 export type VerifyGoogleOAuthTotpDto = z.infer<typeof VerifyGoogleOAuthTotpDto>;
 
+export const VerifyLoginTotpDto = z.object({
+    preAuthToken: z.string().min(1),
+    code: z.string().regex(/^\d{6}$/, "TOTP code must be 6 digits"),
+});
+export type VerifyLoginTotpDto = z.infer<typeof VerifyLoginTotpDto>;

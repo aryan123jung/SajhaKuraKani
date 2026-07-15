@@ -28,6 +28,8 @@ import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils
 const userRepository = new UserRepository();
 const PASSWORD_HASH_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
+const PASSWORD_TOTP_CHALLENGE_EXPIRES_IN = "5m";
+const PASSWORD_TOTP_CHALLENGE_TYPE = "password_login_totp";
 const GOOGLE_TOTP_CHALLENGE_EXPIRES_IN = "10m";
 const GOOGLE_TOTP_CHALLENGE_TYPE = "google_oauth_totp";
 const DUMMY_PASSWORD_HASH =
@@ -51,7 +53,7 @@ type GoogleUserProfile = {
   picture?: string;
 };
 
-interface GoogleTotpChallengePayload extends jwt.JwtPayload {
+interface TotpChallengePayload extends jwt.JwtPayload {
   id: string;
   tokenType: string;
 }
@@ -144,15 +146,19 @@ export class UserService {
     }
   }
 
-  private createGoogleTotpChallengeToken(user: IUser) {
+  private createTotpChallengeToken(
+    user: IUser,
+    tokenType: string,
+    expiresIn: string
+  ) {
     return jwt.sign(
       {
         id: user._id.toString(),
-        tokenType: GOOGLE_TOTP_CHALLENGE_TYPE,
+        tokenType,
       },
       JWT_SECRET,
       {
-        expiresIn: GOOGLE_TOTP_CHALLENGE_EXPIRES_IN,
+        expiresIn: expiresIn as jwt.SignOptions["expiresIn"],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
         subject: user._id.toString(),
@@ -160,23 +166,27 @@ export class UserService {
     );
   }
 
-  private verifyGoogleTotpChallengeToken(token: string) {
-    let decodedToken: GoogleTotpChallengePayload;
+  private verifyTotpChallengeToken(
+    token: string,
+    expectedTokenType: string,
+    invalidMessage: string
+  ) {
+    let decodedToken: TotpChallengePayload;
 
     try {
       decodedToken = jwt.verify(token, JWT_SECRET, {
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
-      }) as GoogleTotpChallengePayload;
+      }) as TotpChallengePayload;
     } catch {
-      throw new HttpError(401, "Google sign-in verification session is invalid or expired");
+      throw new HttpError(401, `${invalidMessage} is invalid or expired`);
     }
 
     if (
       !decodedToken.id ||
-      decodedToken.tokenType !== GOOGLE_TOTP_CHALLENGE_TYPE
+      decodedToken.tokenType !== expectedTokenType
     ) {
-      throw new HttpError(401, "Google sign-in verification session is invalid");
+      throw new HttpError(401, `${invalidMessage} is invalid`);
     }
 
     return decodedToken;
@@ -335,19 +345,28 @@ export class UserService {
     }
 
     if (user.totpEnabled) {
-      if (!loginData.totpCode || !user.totpSecretEncrypted) {
-        throw new HttpError(401, "TOTP code is required");
+      if (!user.totpSecretEncrypted) {
+        throw new HttpError(400, "Two-factor authentication is not configured correctly");
       }
 
-      const decryptedSecret = decryptText(user.totpSecretEncrypted);
-      if (!verifyTotpCode(decryptedSecret, loginData.totpCode)) {
-        await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
-      }
+      return {
+        requiresTotp: true as const,
+        preAuthToken: this.createTotpChallengeToken(
+          user,
+          PASSWORD_TOTP_CHALLENGE_TYPE,
+          PASSWORD_TOTP_CHALLENGE_EXPIRES_IN
+        ),
+        user: sanitizeUser(user),
+      };
     }
 
     await this.clearFailedAuthAttempts(user);
 
-    return { token: this.createJwtForUser(user), user: sanitizeUser(user) };
+    return {
+      requiresTotp: false as const,
+      token: this.createJwtForUser(user),
+      user: sanitizeUser(user),
+    };
   }
 
   async getGoogleOAuthUrl() {
@@ -371,7 +390,11 @@ export class UserService {
     if (user.totpEnabled) {
       return {
         requiresTotp: true as const,
-        preAuthToken: this.createGoogleTotpChallengeToken(user),
+        preAuthToken: this.createTotpChallengeToken(
+          user,
+          GOOGLE_TOTP_CHALLENGE_TYPE,
+          GOOGLE_TOTP_CHALLENGE_EXPIRES_IN
+        ),
         user: sanitizeUser(user),
       };
     }
@@ -384,7 +407,44 @@ export class UserService {
   }
 
   async completeGoogleTotpLogin(preAuthToken: string, code: string) {
-    const decodedToken = this.verifyGoogleTotpChallengeToken(preAuthToken);
+    const decodedToken = this.verifyTotpChallengeToken(
+      preAuthToken,
+      GOOGLE_TOTP_CHALLENGE_TYPE,
+      "Google sign-in verification session"
+    );
+    const user = await userRepository.getUserById(decodedToken.id, true);
+
+    if (!user) {
+      throw new HttpError(404, "User not found");
+    }
+
+    if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
+      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+    }
+
+    if (!user.totpEnabled || !user.totpSecretEncrypted) {
+      throw new HttpError(400, "Two-factor authentication is not enabled for this account");
+    }
+
+    const decryptedSecret = decryptText(user.totpSecretEncrypted);
+    if (!verifyTotpCode(decryptedSecret, code)) {
+      await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
+    }
+
+    await this.clearFailedAuthAttempts(user);
+
+    return {
+      token: this.createJwtForUser(user),
+      user: sanitizeUser(user),
+    };
+  }
+
+  async completePasswordTotpLogin(preAuthToken: string, code: string) {
+    const decodedToken = this.verifyTotpChallengeToken(
+      preAuthToken,
+      PASSWORD_TOTP_CHALLENGE_TYPE,
+      "Two-factor verification session"
+    );
     const user = await userRepository.getUserById(decodedToken.id, true);
 
     if (!user) {

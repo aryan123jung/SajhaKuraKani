@@ -8,6 +8,7 @@ import {
     RequestPasswordResetDto,
     ResetPasswordDto,
     VerifyGoogleOAuthTotpDto,
+    VerifyLoginTotpDto,
     VerifyTotpDto,
     UpdateUserDto
 } from "../dtos/user.dtos";
@@ -42,10 +43,47 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
-            const { token, user } = await userService.loginUser(parsedData.data);
+            const data = await userService.loginUser(parsedData.data);
             return res.status(200).json(
-                { success: true, message: 'Login Successful', data: user, token }
+                {
+                    success: true,
+                    message: data.requiresTotp
+                        ? "TOTP verification is required to complete sign-in"
+                        : "Login Successful",
+                    data: {
+                        user: data.user,
+                        requiresTotp: data.requiresTotp,
+                        preAuthToken: data.requiresTotp ? data.preAuthToken : undefined
+                    },
+                    token: data.requiresTotp ? undefined : data.token
+                }
             )
+        } catch (error: Error | any) {
+            return res.status(error.statusCode || 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            )
+        }
+    }
+    async verifyLoginTotp(req: Request, res: Response) {
+        try {
+            const parsedData = VerifyLoginTotpDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            const data = await userService.completePasswordTotpLogin(
+                parsedData.data.preAuthToken,
+                parsedData.data.code
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Sign-in completed successfully",
+                data: data.user,
+                token: data.token
+            });
         } catch (error: Error | any) {
             return res.status(error.statusCode || 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
