@@ -10,6 +10,7 @@ export function proxy(request: NextRequest) {
   const isRegisterPage = pathname === "/register";
   const isProtectedPage =
     pathname === "/" ||
+    pathname === "/settings" ||
     pathname.startsWith("/user") ||
     pathname.startsWith("/admin");
 
@@ -25,5 +26,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/register", "/user/:path*", "/admin/:path*"],
+  matcher: ["/", "/settings", "/login", "/register", "/user/:path*", "/admin/:path*"],
 };

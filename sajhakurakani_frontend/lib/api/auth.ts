@@ -44,6 +44,17 @@ type GoogleLoginUrlData = {
   authorizationUrl: string;
 };
 
+type GoogleOAuthExchangeData = {
+  user: AuthUser;
+  requiresTotp: boolean;
+  preAuthToken?: string;
+};
+
+type TotpSetupData = {
+  manualEntryKey: string;
+  otpAuthUrl: string;
+};
+
 const getSafeErrorMessage = (
   error: unknown,
   fallback: string,
@@ -60,6 +71,10 @@ const getSafeErrorMessage = (
   if (context === "login") {
     if (responseMessage.includes("totp code is required")) {
       return "This account needs a verification code. Continue with your 6-digit TOTP code.";
+    }
+
+    if (responseMessage.includes("invalid totp code")) {
+      return "The 6-digit authenticator code is incorrect.";
     }
 
     if (status === 423 || responseMessage.includes("temporarily locked")) {
@@ -86,6 +101,14 @@ const getSafeErrorMessage = (
   }
 
   if (context === "oauth") {
+    if (status === 423 || responseMessage.includes("temporarily locked")) {
+      return "Too many verification attempts were made. Please wait a bit and try again.";
+    }
+
+    if (responseMessage.includes("invalid totp code")) {
+      return "The authenticator code you entered is incorrect.";
+    }
+
     if (
       status === 500 ||
       responseMessage.includes("google oauth is not configured")
@@ -160,8 +183,34 @@ export async function exchangeGoogleOAuthCode(payload: {
   state: string;
 }) {
   try {
-    const response = await axiosInstance.post<ApiResponse<AuthUser>>(
+    const response = await axiosInstance.post<ApiResponse<GoogleOAuthExchangeData>>(
       "/api/auth/oauth/google/exchange",
+      payload
+    );
+
+    if (!response.data.data.requiresTotp && !response.data.token) {
+      throw new Error("Authentication token was not returned by the server.");
+    }
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getSafeErrorMessage(
+        error,
+        "Unable to complete Google sign-in right now.",
+        "oauth"
+      )
+    );
+  }
+}
+
+export async function verifyGoogleOAuthTotp(payload: {
+  preAuthToken: string;
+  code: string;
+}) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<AuthUser>>(
+      "/api/auth/oauth/google/verify-totp",
       payload
     );
 
@@ -177,6 +226,62 @@ export async function exchangeGoogleOAuthCode(payload: {
         "Unable to complete Google sign-in right now.",
         "oauth"
       )
+    );
+  }
+}
+
+export async function startTotpSetup() {
+  try {
+    const response = await axiosInstance.post<ApiResponse<TotpSetupData>>(
+      "/api/auth/totp/setup"
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to start two-factor setup right now."
+    );
+  }
+}
+
+export async function enableTotp(code: string) {
+  try {
+    return await axiosInstance.post<ApiResponse<null>>("/api/auth/totp/enable", {
+      code,
+    });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to enable two-factor authentication right now."
+    );
+  }
+}
+
+export async function disableTotp(code: string) {
+  try {
+    return await axiosInstance.post<ApiResponse<null>>("/api/auth/totp/disable", {
+      code,
+    });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to disable two-factor authentication right now."
     );
   }
 }

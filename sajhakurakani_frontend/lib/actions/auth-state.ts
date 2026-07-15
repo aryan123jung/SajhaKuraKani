@@ -45,3 +45,41 @@ export const initialRegisterActionState: RegisterActionState = {
     confirmPassword: "",
   },
 };
+
+export type GoogleTotpActionState = {
+  success: boolean;
+  message: string;
+  code: string;
+};
+
+export const initialGoogleTotpActionState: GoogleTotpActionState = {
+  success: false,
+  message: "",
+  code: "",
+};
+
+export type TotpSetupActionState = {
+  success: boolean;
+  message: string;
+  manualEntryKey: string;
+  otpAuthUrl: string;
+};
+
+export const initialTotpSetupActionState: TotpSetupActionState = {
+  success: false,
+  message: "",
+  manualEntryKey: "",
+  otpAuthUrl: "",
+};
+
+export type TotpCodeActionState = {
+  success: boolean;
+  message: string;
+  code: string;
+};
+
+export const initialTotpCodeActionState: TotpCodeActionState = {
+  success: false,
+  message: "",
+  code: "",
+};

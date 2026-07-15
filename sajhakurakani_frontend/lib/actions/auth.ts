@@ -2,9 +2,23 @@
 
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { getGoogleOAuthUrl, login, register } from "../api/auth";
-import { clearAuthToken, setAuthToken } from "../cookie";
-import type { LoginActionState, RegisterActionState } from "./auth-state";
+import {
+  getGoogleOAuthUrl,
+  login,
+  register,
+  verifyGoogleOAuthTotp,
+} from "../api/auth";
+import {
+  clearAuthToken,
+  clearGoogleTotpPreAuthToken,
+  getGoogleTotpPreAuthToken,
+  setAuthToken,
+} from "../cookie";
+import type {
+  GoogleTotpActionState,
+  LoginActionState,
+  RegisterActionState,
+} from "./auth-state";
 
 export async function loginAction(
   previousState: LoginActionState,
@@ -87,6 +101,53 @@ export async function startGoogleLoginAction() {
 
 export async function logoutAction() {
   await clearAuthToken();
+  await clearGoogleTotpPreAuthToken();
+  redirect("/login");
+}
+
+export async function completeGoogleTotpAction(
+  _previousState: GoogleTotpActionState,
+  formData: FormData
+): Promise<GoogleTotpActionState> {
+  const code = String(formData.get("code") || "").trim();
+  const preAuthToken = await getGoogleTotpPreAuthToken();
+
+  if (!preAuthToken) {
+    return {
+      success: false,
+      message: "Your Google sign-in verification session expired. Start again.",
+      code: "",
+    };
+  }
+
+  if (!/^\d{6}$/.test(code)) {
+    return {
+      success: false,
+      message: "Enter the 6-digit code from your authenticator app.",
+      code,
+    };
+  }
+
+  try {
+    const response = await verifyGoogleOAuthTotp({ preAuthToken, code });
+    await setAuthToken(response.token as string);
+    await clearGoogleTotpPreAuthToken();
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to complete Google sign-in right now.",
+      code: "",
+    };
+  }
+
+  redirect("/");
+}
+
+export async function cancelGoogleTotpAction() {
+  await clearGoogleTotpPreAuthToken();
   redirect("/login");
 }
 
