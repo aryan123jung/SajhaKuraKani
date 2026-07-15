@@ -3,7 +3,7 @@ import "server-only";
 import axios from "axios";
 import { getAuthToken } from "../cookie";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:6060";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,

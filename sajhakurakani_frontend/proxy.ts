@@ -7,12 +7,13 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isLoginPage = pathname === "/login";
+  const isRegisterPage = pathname === "/register";
   const isProtectedPage =
     pathname === "/" ||
     pathname.startsWith("/user") ||
     pathname.startsWith("/admin");
 
-  if (isLoginPage && token) {
+  if ((isLoginPage || isRegisterPage) && token) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -24,5 +25,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/user/:path*", "/admin/:path*"],
+  matcher: ["/", "/login", "/register", "/user/:path*", "/admin/:path*"],
 };

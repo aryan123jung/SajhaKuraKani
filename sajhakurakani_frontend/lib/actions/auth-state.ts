@@ -19,3 +19,29 @@ export const initialLoginActionState: LoginActionState = {
     totpCode: "",
   },
 };
+
+export type RegisterActionState = {
+  success: boolean;
+  message: string;
+  fields: {
+    firstName: string;
+    lastName: string;
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+  };
+};
+
+export const initialRegisterActionState: RegisterActionState = {
+  success: false,
+  message: "",
+  fields: {
+    firstName: "",
+    lastName: "",
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  },
+};

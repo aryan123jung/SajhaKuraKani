@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAuthToken } from "@/lib/cookie";
+import { logoutAction } from "@/lib/actions/auth";
 
 export default async function Home() {
   const token = await getAuthToken();
@@ -24,14 +25,25 @@ export default async function Home() {
         </div>
 
         <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7683c_0%,#ff9f6e_100%)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(247,104,60,0.35)]"
-          >
-            Open Login Page
-          </Link>
+          {token ? (
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7683c_0%,#ff9f6e_100%)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(247,104,60,0.35)]"
+              >
+                Log Out
+              </button>
+            </form>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7683c_0%,#ff9f6e_100%)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(247,104,60,0.35)]"
+            >
+              Open Login Page
+            </Link>
+          )}
           <div className="inline-flex items-center rounded-2xl border border-white/12 bg-white/5 px-5 py-3.5 text-sm text-white/58">
-            Token present: {token ? "yes" : "no"}
+            Session active: {token ? "yes" : "no"}
           </div>
         </div>
       </main>

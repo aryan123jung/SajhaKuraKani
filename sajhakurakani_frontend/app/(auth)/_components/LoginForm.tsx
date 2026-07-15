@@ -7,9 +7,15 @@ import { initialLoginActionState } from "@/lib/actions/auth-state";
 
 type LoginFormProps = {
   oauthError?: string;
+  notice?: string;
+  initialEmail?: string;
 };
 
-export default function LoginForm({ oauthError }: LoginFormProps) {
+export default function LoginForm({
+  oauthError,
+  notice,
+  initialEmail,
+}: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(
     loginAction,
     initialLoginActionState
@@ -70,7 +76,7 @@ export default function LoginForm({ oauthError }: LoginFormProps) {
                 id="email"
                 name="email"
                 type="email"
-                defaultValue={safeState.fields.email}
+                defaultValue={safeState.fields.email || initialEmail || ""}
                 placeholder="you@example.com"
                 autoComplete="email"
                 className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-sm text-white outline-none ring-0 transition focus:border-[#ff9166] focus:bg-white/8"
@@ -120,6 +126,12 @@ export default function LoginForm({ oauthError }: LoginFormProps) {
                   placeholder="Enter your 6-digit code"
                   className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-sm text-white outline-none ring-0 transition focus:border-[#ff9166] focus:bg-white/8"
                 />
+              </div>
+            ) : null}
+
+            {notice ? (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                {notice}
               </div>
             ) : null}
 
