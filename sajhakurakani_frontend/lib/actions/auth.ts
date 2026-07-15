@@ -1,6 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { getGoogleOAuthUrl, login, register } from "../api/auth";
 import { clearAuthToken, setAuthToken } from "../cookie";
 import type { LoginActionState, RegisterActionState } from "./auth-state";
@@ -60,8 +61,28 @@ export async function loginAction(
 }
 
 export async function startGoogleLoginAction() {
-  const response = await getGoogleOAuthUrl();
-  redirect(response.data.authorizationUrl);
+  try {
+    const response = await getGoogleOAuthUrl();
+    redirect(response.data.authorizationUrl);
+  } catch (error) {
+    unstable_rethrow(error);
+
+    const headerStore = await headers();
+    const referer = headerStore.get("referer");
+    const fallbackPath = "/login";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to start Google sign-in right now.";
+
+    if (referer) {
+      const refererUrl = new URL(referer);
+      refererUrl.searchParams.set("oauthError", message);
+      redirect(refererUrl.toString());
+    }
+
+    redirect(`${fallbackPath}?oauthError=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function logoutAction() {

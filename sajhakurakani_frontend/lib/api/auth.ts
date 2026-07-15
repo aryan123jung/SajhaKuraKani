@@ -86,6 +86,13 @@ const getSafeErrorMessage = (
   }
 
   if (context === "oauth") {
+    if (
+      status === 500 ||
+      responseMessage.includes("google oauth is not configured")
+    ) {
+      return "Google sign-in is not available yet. Please finish its setup and try again.";
+    }
+
     return "Unable to continue with Google sign-in right now.";
   }
 
@@ -170,6 +177,30 @@ export async function exchangeGoogleOAuthCode(payload: {
         "Unable to complete Google sign-in right now.",
         "oauth"
       )
+    );
+  }
+}
+
+export async function getCurrentUser() {
+  try {
+    const response = await axiosInstance.get<ApiResponse<AuthUser>>(
+      "/api/auth/whoami"
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+
+      if (status === 401) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to load your account right now."
     );
   }
 }
