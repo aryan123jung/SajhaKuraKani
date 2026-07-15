@@ -28,6 +28,8 @@ import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils
 const userRepository = new UserRepository();
 const PASSWORD_HASH_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
+const GOOGLE_TOTP_CHALLENGE_EXPIRES_IN = "10m";
+const GOOGLE_TOTP_CHALLENGE_TYPE = "google_oauth_totp";
 const DUMMY_PASSWORD_HASH =
   "$2b$12$tHmPxQF95C4C82Bbfkvtn.9zTzD/rif7Yi4Ee0Q5T3dJv3ikm/xmC";
 
@@ -48,6 +50,11 @@ type GoogleUserProfile = {
   name?: string;
   picture?: string;
 };
+
+interface GoogleTotpChallengePayload extends jwt.JwtPayload {
+  id: string;
+  tokenType: string;
+}
 
 const sanitizeUser = (user: IUser) => {
   const userObject = user.toObject();
@@ -105,7 +112,10 @@ export class UserService {
     });
   }
 
-  private async registerFailedAuthAttempt(user: IUser) {
+  private async registerFailedAuthAttempt(
+    user: IUser,
+    failureMessage = "Invalid email or password"
+  ) {
     const failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
     const isLocked = failedLoginAttempts >= AUTH_MAX_FAILED_ATTEMPTS;
 
@@ -118,7 +128,7 @@ export class UserService {
       throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
     }
 
-    throw new HttpError(401, "Invalid email or password");
+    throw new HttpError(401, failureMessage);
   }
 
   private async clearFailedAuthAttempts(user: IUser) {
@@ -132,6 +142,44 @@ export class UserService {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
       throw new HttpError(500, "Google OAuth is not configured on the server");
     }
+  }
+
+  private createGoogleTotpChallengeToken(user: IUser) {
+    return jwt.sign(
+      {
+        id: user._id.toString(),
+        tokenType: GOOGLE_TOTP_CHALLENGE_TYPE,
+      },
+      JWT_SECRET,
+      {
+        expiresIn: GOOGLE_TOTP_CHALLENGE_EXPIRES_IN,
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        subject: user._id.toString(),
+      }
+    );
+  }
+
+  private verifyGoogleTotpChallengeToken(token: string) {
+    let decodedToken: GoogleTotpChallengePayload;
+
+    try {
+      decodedToken = jwt.verify(token, JWT_SECRET, {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      }) as GoogleTotpChallengePayload;
+    } catch {
+      throw new HttpError(401, "Google sign-in verification session is invalid or expired");
+    }
+
+    if (
+      !decodedToken.id ||
+      decodedToken.tokenType !== GOOGLE_TOTP_CHALLENGE_TYPE
+    ) {
+      throw new HttpError(401, "Google sign-in verification session is invalid");
+    }
+
+    return decodedToken;
   }
 
   private async exchangeGoogleCodeForAccessToken(code: string): Promise<GoogleTokenResponse> {
@@ -293,7 +341,7 @@ export class UserService {
 
       const decryptedSecret = decryptText(user.totpSecretEncrypted);
       if (!verifyTotpCode(decryptedSecret, loginData.totpCode)) {
-        await this.registerFailedAuthAttempt(user);
+        await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
       }
     }
 
@@ -319,6 +367,44 @@ export class UserService {
     const tokenResponse = await this.exchangeGoogleCodeForAccessToken(code);
     const googleProfile = await this.fetchGoogleUserProfile(tokenResponse.access_token);
     const user = await this.findOrCreateGoogleUser(googleProfile);
+
+    if (user.totpEnabled) {
+      return {
+        requiresTotp: true as const,
+        preAuthToken: this.createGoogleTotpChallengeToken(user),
+        user: sanitizeUser(user),
+      };
+    }
+
+    return {
+      requiresTotp: false as const,
+      token: this.createJwtForUser(user),
+      user: sanitizeUser(user),
+    };
+  }
+
+  async completeGoogleTotpLogin(preAuthToken: string, code: string) {
+    const decodedToken = this.verifyGoogleTotpChallengeToken(preAuthToken);
+    const user = await userRepository.getUserById(decodedToken.id, true);
+
+    if (!user) {
+      throw new HttpError(404, "User not found");
+    }
+
+    if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
+      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+    }
+
+    if (!user.totpEnabled || !user.totpSecretEncrypted) {
+      throw new HttpError(400, "Two-factor authentication is not enabled for this account");
+    }
+
+    const decryptedSecret = decryptText(user.totpSecretEncrypted);
+    if (!verifyTotpCode(decryptedSecret, code)) {
+      await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
+    }
+
+    await this.clearFailedAuthAttempts(user);
 
     return {
       token: this.createJwtForUser(user),

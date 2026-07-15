@@ -60,4 +60,9 @@ export const GoogleOAuthExchangeDto = z.object({
 });
 export type GoogleOAuthExchangeDto = z.infer<typeof GoogleOAuthExchangeDto>;
 
+export const VerifyGoogleOAuthTotpDto = z.object({
+    preAuthToken: z.string().min(1),
+    code: z.string().regex(/^\d{6}$/, "TOTP code must be 6 digits"),
+});
+export type VerifyGoogleOAuthTotpDto = z.infer<typeof VerifyGoogleOAuthTotpDto>;
 
