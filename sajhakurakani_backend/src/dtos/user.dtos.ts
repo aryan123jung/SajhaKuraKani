@@ -43,6 +43,11 @@ export const RequestPasswordResetDto = z.object({
 });
 export type RequestPasswordResetDto = z.infer<typeof RequestPasswordResetDto>;
 
+export const RequestEmailVerificationDto = z.object({
+    email: z.email().trim().toLowerCase(),
+});
+export type RequestEmailVerificationDto = z.infer<typeof RequestEmailVerificationDto>;
+
 export const ResetPasswordDto = z.object({
     newPassword: passwordSchema,
 });

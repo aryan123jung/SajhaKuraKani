@@ -60,6 +60,10 @@ export const AUTH_IP_REPUTATION_BLOCK_MS: number = parseNumber(process.env.AUTH_
 export const AUTH_IP_REPUTATION_MIN_DISTINCT_ACCOUNTS: number = parseNumber(process.env.AUTH_IP_REPUTATION_MIN_DISTINCT_ACCOUNTS, 3);
 export const RESET_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(process.env.RESET_RATE_LIMIT_MAX_REQUESTS, 5);
 export const RESET_TOKEN_EXPIRY_MS: number = parseNumber(process.env.RESET_TOKEN_EXPIRY_MS, 5 * 60 * 1000);
+export const EMAIL_VERIFICATION_TOKEN_EXPIRY_MS: number = parseNumber(
+    process.env.EMAIL_VERIFICATION_TOKEN_EXPIRY_MS,
+    24 * 60 * 60 * 1000
+);
 export const RESET_PASSWORD_ENFORCE_IP_MATCH: boolean = process.env.RESET_PASSWORD_ENFORCE_IP_MATCH === "true";
 export const REDIS_URL: string = process.env.REDIS_URL || "";
 export const REDIS_KEY_PREFIX: string = process.env.REDIS_KEY_PREFIX || "sajhakurakani";

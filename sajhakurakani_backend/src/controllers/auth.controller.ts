@@ -5,6 +5,7 @@ import {
     CreateUserDto,
     GoogleOAuthExchangeDto,
     LoginUserDto,
+    RequestEmailVerificationDto,
     RequestPasswordResetDto,
     ResetPasswordDto,
     VerifyGoogleOAuthTotpDto,
@@ -25,9 +26,19 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
-            const newUser = await userService.registerUser(parsedData.data);
+            const newUser = await userService.registerUser(
+                parsedData.data,
+                req.ip,
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
             return res.status(201).json(
-                { success: true, message: 'Register Successful', data: newUser }
+                {
+                    success: true,
+                    message: "Registration successful. Verify your email before signing in.",
+                    data: newUser
+                }
             )
         } catch (error: Error | any) {
             return res.status(error.statusCode || 500).json(
@@ -245,6 +256,55 @@ export class AuthController {
             return res.status(error.statusCode || 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
             )
+        }
+    }
+
+    async requestEmailVerification(req: Request, res: Response) {
+        try {
+            const parsedData = RequestEmailVerificationDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            await userService.resendEmailVerificationEmail(
+                parsedData.data.email,
+                req.ip,
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
+            return res.status(200).json({
+                success: true,
+                message: "If an account exists for that email, a verification link has been sent"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode || 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async verifyEmail(req: Request, res: Response) {
+        try {
+            const token = req.params.token;
+            const data = await userService.verifyEmail(
+                token,
+                req.ip,
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Email verified successfully",
+                data
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode || 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
         }
     }
 

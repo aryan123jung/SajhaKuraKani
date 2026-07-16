@@ -6,11 +6,15 @@ import { initSocket } from "./realtime/socket";
 import { connectDB } from "./database/mogodb";
 import { securityStateStore } from "./security/security-state.store";
 import fs from "fs";
+import { UserService } from "./services/user.services";
+
+const userService = new UserService();
 
 //server part
 async function startServer(){
     await connectDB();
     await securityStateStore.warmConnection();
+    const emailVerificationBackfill = await userService.backfillEmailVerificationState();
     const securityStateStatus = securityStateStore.getConnectionStatus();
     // https implementation
     const useLocalHttps =
@@ -36,6 +40,14 @@ async function startServer(){
                     ? `Redis: connected (${securityStateStatus.redisUrl})`
                     : "Redis: unavailable, using in-memory security state"
             );
+            if (
+                emailVerificationBackfill.verifiedGoogleUsers > 0 ||
+                emailVerificationBackfill.unverifiedLocalUsers > 0
+            ) {
+                console.log(
+                    `Email verification backfill: ${emailVerificationBackfill.verifiedGoogleUsers} Google account(s) marked verified, ${emailVerificationBackfill.unverifiedLocalUsers} local account(s) marked unverified`
+                );
+            }
             if (LOCAL_HTTPS && !useLocalHttps) {
                 console.warn("HTTPS: LOCAL_HTTPS is enabled but certificate files were not found. Falling back to HTTP.");
             }

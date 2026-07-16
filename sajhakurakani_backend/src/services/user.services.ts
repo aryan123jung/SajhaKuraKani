@@ -6,6 +6,7 @@ import {
   AUTH_LOCK_WINDOW_MS,
   AUTH_MAX_FAILED_ATTEMPTS,
   CLIENT_URL,
+  EMAIL_VERIFICATION_TOKEN_EXPIRY_MS,
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
@@ -25,6 +26,7 @@ import crypto from "crypto";
 import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
 import { IUser } from "../models/user.model";
+import { EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository";
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
 import { LoginDefenseSecurity } from "../security/login-defense.security";
 import { decryptText, encryptText } from "../utils/crypto.util";
@@ -32,6 +34,7 @@ import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
 
 const userRepository = new UserRepository();
+const emailVerificationTokenRepository = new EmailVerificationTokenRepository();
 const passwordResetTokenRepository = new PasswordResetTokenRepository();
 const loginDefenseSecurity = new LoginDefenseSecurity();
 const PASSWORD_HASH_ROUNDS = 12;
@@ -44,6 +47,7 @@ const DUMMY_PASSWORD_HASH =
 const GENERIC_LOGIN_FAILURE_MESSAGE = "The credential you entered is incorrect.";
 const ACCOUNT_LOCKED_MESSAGE = "Too many sign-in attempts. Try again later.";
 const IP_BLOCKED_MESSAGE = "Too many sign-in attempts from this network. Try again later.";
+const EMAIL_VERIFICATION_REQUIRED_MESSAGE = "Verify email first";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -112,6 +116,10 @@ const buildGoogleAuthUrl = (state: string) => {
 };
 
 export class UserService {
+  async backfillEmailVerificationState() {
+    return userRepository.backfillEmailVerificationState();
+  }
+
   private logSecurityEvent(event: string, details: Record<string, unknown>) {
     console.info(
       JSON.stringify({
@@ -196,6 +204,45 @@ export class UserService {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
       throw new HttpError(500, "Google OAuth is not configured on the server");
     }
+  }
+
+  private async sendEmailVerificationEmailToUser(
+    user: IUser,
+    requestIp?: string,
+    userAgent?: string
+  ) {
+    const { rawToken, tokenHash } = createResetToken();
+    const verificationLink = `${CLIENT_URL}/verify-email?token=${encodeURIComponent(rawToken)}`;
+    const requestedIpHash = hashResetMetadata(requestIp);
+    const requestedUserAgent = truncateUserAgent(userAgent);
+
+    await emailVerificationTokenRepository.invalidateActiveTokensForUser(
+      user._id.toString()
+    );
+    await emailVerificationTokenRepository.createToken({
+      userId: user._id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_EXPIRY_MS),
+      requestedIpHash,
+      requestedUserAgent,
+    });
+
+    const html = `
+      <p>Welcome to SajhaKuraKani.</p>
+      <p>Please verify your email address to activate your account:</p>
+      <p><a href="${verificationLink}">${verificationLink}</a></p>
+      <p>This verification link expires in 24 hours and can only be used once.</p>
+      <p>If you did not create this account, you can safely ignore this email.</p>
+    `;
+    const text = `Verify your SajhaKuraKani account with this one-time link (expires in 24 hours): ${verificationLink}`;
+
+    // email verification
+    await sendEmail(user.email, "Verify Your Email", html, text);
+    this.logSecurityEvent("email_verification_sent", {
+      userId: user._id.toString(),
+      email: user.email,
+      requestedIpHash,
+    });
   }
 
   private createTotpChallengeToken(
@@ -325,6 +372,8 @@ export class UserService {
       await userRepository.updateUser(existingUser._id.toString(), {
         oauthProvider: "google",
         oauthSubject: profile.sub,
+        emailVerified: true,
+        emailVerifiedAt: existingUser.emailVerifiedAt || new Date(),
       });
 
       const refreshedUser = await userRepository.getUserById(existingUser._id.toString(), true);
@@ -348,6 +397,8 @@ export class UserService {
       passwordChangedAt: new Date(),
       failedLoginAttempts: 0,
       totpEnabled: false,
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
     });
 
     const createdUser = await userRepository.getUserById(newUser._id.toString(), true);
@@ -358,7 +409,7 @@ export class UserService {
     return createdUser;
   }
 
-  async registerUser(userData: CreateUserDto) {
+  async registerUser(userData: CreateUserDto, requestIp?: string, userAgent?: string) {
     const normalizedEmail = normalizeEmail(userData.email);
     const normalizedUsername = normalizeUsername(userData.username);
 
@@ -382,7 +433,10 @@ export class UserService {
       ...userToSave,
       passwordChangedAt: new Date(),
       failedLoginAttempts: 0,
+      emailVerified: false,
     });
+
+    await this.sendEmailVerificationEmailToUser(newUser, requestIp, userAgent);
 
     return sanitizeUser(newUser);
   }
@@ -426,6 +480,16 @@ export class UserService {
 
     if (!validPassword) {
       await this.registerFailedAuthAttempt(user, requestIp);
+    }
+
+    if (!user.emailVerified) {
+      await this.clearFailedAuthAttempts(user);
+      this.logSecurityEvent("blocked_unverified_login_attempt", {
+        userId: user._id.toString(),
+        email: user.email,
+        ipAddress: requestIp,
+      });
+      throw new HttpError(403, EMAIL_VERIFICATION_REQUIRED_MESSAGE);
     }
 
     if (user.totpEnabled) {
@@ -691,6 +755,85 @@ export class UserService {
       email: user.email,
       requestedIpHash,
     });
+  }
+
+  async resendEmailVerificationEmail(
+    email?: string,
+    requestIp?: string,
+    userAgent?: string
+  ) {
+    if (!email) {
+      throw new HttpError(400, "Email is required");
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await userRepository.getUserByEmail(normalizedEmail, true);
+
+    if (!user) {
+      this.logSecurityEvent("email_verification_requested_for_unknown_email", {
+        email: normalizedEmail,
+      });
+      return;
+    }
+
+    if (user.emailVerified) {
+      this.logSecurityEvent("email_verification_requested_for_verified_email", {
+        userId: user._id.toString(),
+        email: user.email,
+      });
+      return;
+    }
+
+    await this.sendEmailVerificationEmailToUser(user, requestIp, userAgent);
+  }
+
+  async verifyEmail(token?: string, requestIp?: string, userAgent?: string) {
+    if (!token) {
+      throw new HttpError(400, "Verification token is required");
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const verificationRecord = await emailVerificationTokenRepository.getTokenByHash(
+      tokenHash
+    );
+
+    if (
+      !verificationRecord ||
+      verificationRecord.usedAt ||
+      verificationRecord.expiresAt.getTime() < Date.now()
+    ) {
+      throw new HttpError(400, "Invalid or expired verification link");
+    }
+
+    const user = await userRepository.getUserById(
+      verificationRecord.userId.toString(),
+      true
+    );
+    if (!user) {
+      throw new HttpError(400, "Invalid or expired verification link");
+    }
+
+    await userRepository.updateUser(user._id.toString(), {
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
+    });
+    await emailVerificationTokenRepository.markTokenUsed(
+      verificationRecord._id.toString(),
+      hashResetMetadata(requestIp),
+      truncateUserAgent(userAgent)
+    );
+    await emailVerificationTokenRepository.invalidateActiveTokensForUser(
+      user._id.toString()
+    );
+
+    this.logSecurityEvent("email_verified", {
+      userId: user._id.toString(),
+      email: user.email,
+    });
+
+    return {
+      email: user.email,
+    };
   }
 
   async validateResetPasswordToken(token?: string, requestIp?: string) {

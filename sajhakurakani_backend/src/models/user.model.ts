@@ -18,6 +18,8 @@ export interface IUser extends Document {
   failedLoginAttempts: number;
   lockUntil?: Date;
   passwordChangedAt?: Date;
+  emailVerified: boolean;
+  emailVerifiedAt?: Date;
   resetPasswordTokenHash?: string;
   resetPasswordExpiresAt?: Date;
   createdAt: Date;
@@ -59,6 +61,8 @@ const userMongoSchema = new Schema<IUser>(
     failedLoginAttempts: { type: Number, default: 0, select: false },
     lockUntil: { type: Date, select: false },
     passwordChangedAt: { type: Date, select: false },
+    emailVerified: { type: Boolean, default: false, index: true },
+    emailVerifiedAt: { type: Date, required: false },
     resetPasswordTokenHash: { type: String, select: false },
     resetPasswordExpiresAt: { type: Date, select: false },
   },

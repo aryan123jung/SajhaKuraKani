@@ -39,12 +39,33 @@ const passwordResetLimiter = createRateLimitMiddleware({
     },
 });
 
+const emailVerificationLimiter = createRateLimitMiddleware({
+    keyPrefix: "email-verification",
+    windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+    maxRequests: RESET_RATE_LIMIT_MAX_REQUESTS,
+    message: "Too many verification attempts. Please try again later.",
+    keyGenerator: (req) => {
+        // email verification
+        return `${getClientIp(req)}:${getScopedEmailKey(req.body?.email ?? req.query?.email ?? req.params?.token)}`;
+    },
+});
+
 router.post("/register", authLimiter, authController.createUser)
 router.post("/login", authLimiter, authController.loginUser)
 router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
 router.get("/oauth/google/url", authLimiter, authController.getGoogleOAuthUrl)
 router.post("/oauth/google/exchange", authLimiter, authController.exchangeGoogleOAuthCode)
 router.post("/oauth/google/verify-totp", authLimiter, authController.verifyGoogleOAuthTotp)
+router.post(
+    "/resend-verification-email",
+    emailVerificationLimiter,
+    authController.requestEmailVerification
+)
+router.get(
+    "/verify-email/:token",
+    emailVerificationLimiter,
+    authController.verifyEmail
+)
 
 router.get("/whoami", authorizedMiddleware, authController.getUserById);
 router.get("/users", authorizedMiddleware, authController.searchUsers);

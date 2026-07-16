@@ -9,6 +9,10 @@ export interface IUserRepository{
     getUserByUsername(username: string): Promise<IUser | null>;
 
     createUser(userData: Partial<IUser>): Promise<IUser>;
+    backfillEmailVerificationState(): Promise<{
+        verifiedGoogleUsers: number;
+        unverifiedLocalUsers: number;
+    }>;
     getUserById(userId: string, includeSensitive?: boolean):Promise <IUser | null>;
     getUserByResetPasswordTokenHash(tokenHash: string): Promise<IUser | null>;
     getUserByOAuth(provider: "google", subject: string, includeSensitive?: boolean): Promise<IUser | null>;
@@ -34,6 +38,41 @@ export class UserRepository implements IUserRepository{
         const user = new UserModel(userData);
         await user.save();
         return user;
+    }
+    async backfillEmailVerificationState(): Promise<{
+        verifiedGoogleUsers: number;
+        unverifiedLocalUsers: number;
+    }> {
+        const [googleResult, localResult] = await Promise.all([
+            UserModel.updateMany(
+                {
+                    oauthProvider: "google",
+                    emailVerified: { $exists: false },
+                },
+                {
+                    $set: {
+                        emailVerified: true,
+                        emailVerifiedAt: new Date(),
+                    },
+                }
+            ),
+            UserModel.updateMany(
+                {
+                    oauthProvider: { $exists: false },
+                    emailVerified: { $exists: false },
+                },
+                {
+                    $set: {
+                        emailVerified: false,
+                    },
+                }
+            ),
+        ]);
+
+        return {
+            verifiedGoogleUsers: googleResult.modifiedCount,
+            unverifiedLocalUsers: localResult.modifiedCount,
+        };
     }
     async getUserByEmail(email: string, includeSensitive = false): Promise<IUser | null> {
         let query = UserModel.findOne({"email" : email});
