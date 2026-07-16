@@ -39,7 +39,10 @@ export const JWT_PRIVATE_KEY: string =
     process.env.JWT_PRIVATE_KEY || loadFileIfPresent(JWT_PRIVATE_KEY_PATH);
 export const JWT_PUBLIC_KEY: string =
     process.env.JWT_PUBLIC_KEY || loadFileIfPresent(JWT_PUBLIC_KEY_PATH);
-export const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '15d';
+export const ACCESS_TOKEN_EXPIRES_IN: string =
+    process.env.ACCESS_TOKEN_EXPIRES_IN || '10m';
+export const REFRESH_TOKEN_EXPIRES_IN: string =
+    process.env.REFRESH_TOKEN_EXPIRES_IN || '15d';
 export const JWT_ISSUER: string = process.env.JWT_ISSUER || 'sajhakurakani-api';
 export const JWT_AUDIENCE: string = process.env.JWT_AUDIENCE || 'sajhakurakani-client';
 export const TOTP_ENCRYPTION_KEY: string = process.env.TOTP_ENCRYPTION_KEY || "";

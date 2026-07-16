@@ -14,6 +14,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: IUser;
+      authSessionId?: string;
     }
   }
 }
@@ -22,6 +23,8 @@ interface AuthTokenPayload extends jwt.JwtPayload {
   id: string;
   email?: string;
   role?: string;
+  sid?: string;
+  tokenType?: string;
 }
 
 const userRepository = new UserRepository();
@@ -66,6 +69,10 @@ export const authorizedMiddleware = async (
       throw new HttpError(401, "Authorization token could not be verified");
     }
 
+    if (decodedToken.tokenType !== "access" || !decodedToken.sid) {
+      throw new HttpError(401, "Authorization token could not be verified");
+    }
+
     const userWithSecurityFields = await userRepository.getUserById(decodedToken.id, true);
 
     if (!userWithSecurityFields) {
@@ -86,6 +93,7 @@ export const authorizedMiddleware = async (
     }
 
     req.user = user;
+    req.authSessionId = decodedToken.sid;
     return next();
   } catch (err: Error | any) {
     return res.status(err.statusCode || 500).json({

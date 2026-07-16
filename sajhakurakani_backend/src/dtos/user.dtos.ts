@@ -27,6 +27,11 @@ export const LoginUserDto = z.object({
 });
 export type LoginUserDto = z.infer<typeof LoginUserDto>;
 
+export const RefreshSessionDto = z.object({
+    refreshToken: z.string().min(1).max(4096),
+});
+export type RefreshSessionDto = z.infer<typeof RefreshSessionDto>;
+
 
 export const UpdateUserDto = UserSchema.pick({
     firstName: true,

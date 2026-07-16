@@ -3,6 +3,7 @@ import bcryptjs from "bcryptjs";
 import { UserRepository } from "../repositories/user.repository";
 import jwt from "jsonwebtoken";
 import {
+  ACCESS_TOKEN_EXPIRES_IN,
   AUTH_LOCK_WINDOW_MS,
   AUTH_MAX_FAILED_ATTEMPTS,
   CLIENT_URL,
@@ -12,10 +13,10 @@ import {
   GOOGLE_REDIRECT_URI,
   JWT_ALGORITHM,
   JWT_AUDIENCE,
-  JWT_EXPIRES_IN,
   JWT_ISSUER,
   JWT_PRIVATE_KEY,
   JWT_PUBLIC_KEY,
+  REFRESH_TOKEN_EXPIRES_IN,
   RESET_PASSWORD_ENFORCE_IP_MATCH,
   RESET_TOKEN_EXPIRY_MS,
   TOTP_ISSUER,
@@ -23,9 +24,11 @@ import {
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
 import { IUser } from "../models/user.model";
+import { AuthSessionRepository } from "../repositories/auth-session.repository";
 import { EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository";
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
 import { LoginDefenseSecurity } from "../security/login-defense.security";
@@ -34,6 +37,7 @@ import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
 
 const userRepository = new UserRepository();
+const authSessionRepository = new AuthSessionRepository();
 const emailVerificationTokenRepository = new EmailVerificationTokenRepository();
 const passwordResetTokenRepository = new PasswordResetTokenRepository();
 const loginDefenseSecurity = new LoginDefenseSecurity();
@@ -72,6 +76,12 @@ interface TotpChallengePayload extends jwt.JwtPayload {
   tokenType: string;
 }
 
+interface SessionTokenPayload extends jwt.JwtPayload {
+  id: string;
+  sid: string;
+  tokenType: "access" | "refresh";
+}
+
 const sanitizeUser = (user: IUser) => {
   const userObject = user.toObject();
   delete userObject.password;
@@ -92,6 +102,8 @@ const createResetToken = () => {
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   return { rawToken, tokenHash };
 };
+const hashSessionToken = (token: string) =>
+  crypto.createHash("sha256").update(token).digest("hex");
 const hashResetMetadata = (value?: string) =>
   value ? crypto.createHash("sha256").update(value).digest("hex") : undefined;
 const truncateUserAgent = (value?: string) => value?.slice(0, 512);
@@ -115,6 +127,24 @@ const buildGoogleAuthUrl = (state: string) => {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 };
 
+const resolveExpiryDate = (expiresIn: string) => {
+  const match = expiresIn.trim().match(/^(\d+)([smhd])$/i);
+  if (!match) {
+    return new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+  }
+
+  const [, rawAmount, unit] = match;
+  const amount = Number(rawAmount);
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  return new Date(Date.now() + amount * multipliers[unit.toLowerCase()]);
+};
+
 export class UserService {
   async backfillEmailVerificationState() {
     return userRepository.backfillEmailVerificationState();
@@ -132,7 +162,7 @@ export class UserService {
     );
   }
 
-  private createJwtForUser(user: IUser) {
+  private createAccessTokenForUser(user: IUser, sessionId: string) {
     if (!JWT_PRIVATE_KEY) {
       throw new HttpError(500, "JWT private key is not configured on the server");
     }
@@ -141,15 +171,125 @@ export class UserService {
       id: user._id.toString(),
       email: user.email,
       role: user.role,
+      sid: sessionId,
+      tokenType: "access" as const,
     };
 
     return jwt.sign(payload, JWT_PRIVATE_KEY, {
       algorithm: JWT_ALGORITHM,
-      expiresIn: JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN as jwt.SignOptions["expiresIn"],
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
       subject: user._id.toString(),
     });
+  }
+
+  private createRefreshTokenForUser(user: IUser, sessionId: string) {
+    if (!JWT_PRIVATE_KEY) {
+      throw new HttpError(500, "JWT private key is not configured on the server");
+    }
+
+    return jwt.sign(
+      {
+        id: user._id.toString(),
+        sid: sessionId,
+        tokenType: "refresh" as const,
+      },
+      JWT_PRIVATE_KEY,
+      {
+        algorithm: JWT_ALGORITHM,
+        expiresIn: REFRESH_TOKEN_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        subject: user._id.toString(),
+      }
+    );
+  }
+
+  private verifySessionToken(
+    token: string,
+    expectedTokenType: "access" | "refresh",
+    invalidMessage: string
+  ) {
+    let decodedToken: SessionTokenPayload;
+
+    if (!JWT_PUBLIC_KEY) {
+      throw new HttpError(500, "JWT public key is not configured on the server");
+    }
+
+    try {
+      decodedToken = jwt.verify(token, JWT_PUBLIC_KEY, {
+        algorithms: [JWT_ALGORITHM],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      }) as SessionTokenPayload;
+    } catch {
+      throw new HttpError(401, `${invalidMessage} is invalid or expired`);
+    }
+
+    if (
+      !decodedToken.id ||
+      !decodedToken.sid ||
+      decodedToken.tokenType !== expectedTokenType
+    ) {
+      throw new HttpError(401, `${invalidMessage} is invalid`);
+    }
+
+    return decodedToken;
+  }
+
+  private async createAuthSession(
+    user: IUser,
+    requestIp?: string,
+    userAgent?: string
+  ) {
+    const sessionId = new mongoose.Types.ObjectId();
+    const refreshToken = this.createRefreshTokenForUser(user, sessionId.toString());
+    const refreshTokenHash = hashSessionToken(refreshToken);
+    const ipHash = hashResetMetadata(requestIp);
+    const sanitizedUserAgent = truncateUserAgent(userAgent);
+
+    // session management
+    await authSessionRepository.createSession(sessionId, {
+      userId: user._id,
+      refreshTokenHash,
+      expiresAt: resolveExpiryDate(REFRESH_TOKEN_EXPIRES_IN),
+      createdIpHash: ipHash,
+      lastIpHash: ipHash,
+      userAgent: sanitizedUserAgent,
+      lastUsedAt: new Date(),
+    });
+
+    return {
+      accessToken: this.createAccessTokenForUser(user, sessionId.toString()),
+      refreshToken,
+      sessionId: sessionId.toString(),
+    };
+  }
+
+  private async rotateSessionTokens(
+    user: IUser,
+    sessionId: string,
+    requestIp?: string,
+    userAgent?: string
+  ) {
+    const refreshToken = this.createRefreshTokenForUser(user, sessionId);
+    const refreshTokenHash = hashSessionToken(refreshToken);
+
+    // refresh token rotation
+    await authSessionRepository.rotateRefreshToken(
+      sessionId,
+      refreshTokenHash,
+      resolveExpiryDate(REFRESH_TOKEN_EXPIRES_IN),
+      hashResetMetadata(requestIp),
+      truncateUserAgent(userAgent)
+    );
+
+    return {
+      accessToken: this.createAccessTokenForUser(user, sessionId),
+      refreshToken,
+      sessionId,
+    };
   }
 
   private async registerFailedAuthAttempt(
@@ -441,7 +581,7 @@ export class UserService {
     return sanitizeUser(newUser);
   }
 
-  async loginUser(loginData: LoginUserDto, requestIp?: string) {
+  async loginUser(loginData: LoginUserDto, requestIp?: string, userAgent?: string) {
     const normalizedEmail = normalizeEmail(loginData.email);
 
     if (await loginDefenseSecurity.isIpBlocked(requestIp)) {
@@ -510,9 +650,12 @@ export class UserService {
 
     await this.clearFailedAuthAttempts(user);
 
+    const session = await this.createAuthSession(user, requestIp, userAgent);
+
     return {
       requiresTotp: false as const,
-      token: this.createJwtForUser(user),
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
       user: sanitizeUser(user),
     };
   }
@@ -526,7 +669,7 @@ export class UserService {
     };
   }
 
-  async loginWithGoogleOAuth(code: string, state: string) {
+  async loginWithGoogleOAuth(code: string, state: string, requestIp?: string, userAgent?: string) {
     if (!consumeOAuthState(state)) {
       throw new HttpError(401, "Invalid or expired OAuth state");
     }
@@ -547,14 +690,22 @@ export class UserService {
       };
     }
 
+    const session = await this.createAuthSession(user, requestIp, userAgent);
+
     return {
       requiresTotp: false as const,
-      token: this.createJwtForUser(user),
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
       user: sanitizeUser(user),
     };
   }
 
-  async completeGoogleTotpLogin(preAuthToken: string, code: string) {
+  async completeGoogleTotpLogin(
+    preAuthToken: string,
+    code: string,
+    requestIp?: string,
+    userAgent?: string
+  ) {
     const decodedToken = this.verifyTotpChallengeToken(
       preAuthToken,
       GOOGLE_TOTP_CHALLENGE_TYPE,
@@ -581,14 +732,21 @@ export class UserService {
     }
 
     await this.clearFailedAuthAttempts(user);
+    const session = await this.createAuthSession(user, requestIp, userAgent);
 
     return {
-      token: this.createJwtForUser(user),
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
       user: sanitizeUser(user),
     };
   }
 
-  async completePasswordTotpLogin(preAuthToken: string, code: string) {
+  async completePasswordTotpLogin(
+    preAuthToken: string,
+    code: string,
+    requestIp?: string,
+    userAgent?: string
+  ) {
     const decodedToken = this.verifyTotpChallengeToken(
       preAuthToken,
       PASSWORD_TOTP_CHALLENGE_TYPE,
@@ -615,11 +773,115 @@ export class UserService {
     }
 
     await this.clearFailedAuthAttempts(user);
+    const session = await this.createAuthSession(user, requestIp, userAgent);
 
     return {
-      token: this.createJwtForUser(user),
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
       user: sanitizeUser(user),
     };
+  }
+
+  async refreshSession(refreshToken: string, requestIp?: string, userAgent?: string) {
+    const decodedToken = this.verifySessionToken(
+      refreshToken,
+      "refresh",
+      "Refresh token"
+    );
+    const session = await authSessionRepository.getActiveSessionById(decodedToken.sid);
+
+    if (!session) {
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    if (session.userId.toString() !== decodedToken.id) {
+      await authSessionRepository.revokeSession(session._id.toString(), "refresh_token_user_mismatch");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    if (session.refreshTokenHash !== hashSessionToken(refreshToken)) {
+      await authSessionRepository.revokeSession(session._id.toString(), "refresh_token_mismatch");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    const user = await userRepository.getUserById(decodedToken.id, true);
+    if (!user) {
+      await authSessionRepository.revokeSession(session._id.toString(), "user_not_found");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    if (
+      user.passwordChangedAt &&
+      decodedToken.iat &&
+      decodedToken.iat * 1000 < user.passwordChangedAt.getTime()
+    ) {
+      await authSessionRepository.revokeSession(session._id.toString(), "password_changed");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    const rotatedSession = await this.rotateSessionTokens(
+      user,
+      session._id.toString(),
+      requestIp,
+      userAgent
+    );
+
+    return {
+      accessToken: rotatedSession.accessToken,
+      refreshToken: rotatedSession.refreshToken,
+      user: sanitizeUser(user),
+    };
+  }
+
+  async listUserSessions(userId: string, currentSessionId?: string) {
+    const sessions = await authSessionRepository.listActiveSessionsForUser(userId);
+
+    return sessions.map((session) => ({
+      id: session._id.toString(),
+      current: session._id.toString() === currentSessionId,
+      createdAt: session.createdAt,
+      lastUsedAt: session.lastUsedAt ?? session.updatedAt,
+      expiresAt: session.expiresAt,
+      userAgent: session.userAgent ?? "Unknown device",
+    }));
+  }
+
+  async revokeCurrentSession(userId: string, currentSessionId?: string) {
+    if (!currentSessionId) {
+      throw new HttpError(400, "Current session could not be identified");
+    }
+
+    const session = await authSessionRepository.getActiveSessionById(currentSessionId);
+    if (!session || session.userId.toString() !== userId) {
+      throw new HttpError(404, "Session not found");
+    }
+
+    await authSessionRepository.revokeSession(currentSessionId, "user_logout");
+  }
+
+  async revokeSessionById(userId: string, sessionId: string, currentSessionId?: string) {
+    const session = await authSessionRepository.getActiveSessionById(sessionId);
+    if (!session || session.userId.toString() !== userId) {
+      throw new HttpError(404, "Session not found");
+    }
+
+    if (session._id.toString() === currentSessionId) {
+      throw new HttpError(400, "Use logout to revoke the current session");
+    }
+
+    await authSessionRepository.revokeSession(sessionId, "user_revoked_session");
+  }
+
+  async revokeOtherSessions(userId: string, currentSessionId?: string) {
+    if (!currentSessionId) {
+      throw new HttpError(400, "Current session could not be identified");
+    }
+
+    await authSessionRepository.revokeAllSessionsForUser(
+      userId,
+      "user_revoked_other_sessions",
+      currentSessionId
+    );
   }
 
   async getUserById(userId: string) {
@@ -928,6 +1190,10 @@ export class UserService {
       truncateUserAgent(userAgent)
     );
     await passwordResetTokenRepository.invalidateActiveTokensForUser(user._id.toString());
+    await authSessionRepository.revokeAllSessionsForUser(
+      user._id.toString(),
+      "password_reset"
+    );
 
     const html = `
       <p>Your SajhaKuraKani password was changed successfully.</p>

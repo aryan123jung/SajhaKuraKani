@@ -5,6 +5,7 @@ import {
     CreateUserDto,
     GoogleOAuthExchangeDto,
     LoginUserDto,
+    RefreshSessionDto,
     RequestEmailVerificationDto,
     RequestPasswordResetDto,
     ResetPasswordDto,
@@ -55,7 +56,13 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
-            const data = await userService.loginUser(parsedData.data, getClientIp(req));
+            const data = await userService.loginUser(
+                parsedData.data,
+                getClientIp(req),
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
             return res.status(200).json(
                 {
                     success: true,
@@ -67,7 +74,8 @@ export class AuthController {
                         requiresTotp: data.requiresTotp,
                         preAuthToken: data.requiresTotp ? data.preAuthToken : undefined
                     },
-                    token: data.requiresTotp ? undefined : data.token
+                    accessToken: data.requiresTotp ? undefined : data.accessToken,
+                    refreshToken: data.requiresTotp ? undefined : data.refreshToken
                 }
             )
         } catch (error: Error | any) {
@@ -87,19 +95,55 @@ export class AuthController {
 
             const data = await userService.completePasswordTotpLogin(
                 parsedData.data.preAuthToken,
-                parsedData.data.code
+                parsedData.data.code,
+                getClientIp(req),
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
             );
 
             return res.status(200).json({
                 success: true,
                 message: "Sign-in completed successfully",
                 data: data.user,
-                token: data.token
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode || 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
             )
+        }
+    }
+
+    async refreshSession(req: Request, res: Response) {
+        try {
+            const parsedData = RefreshSessionDto.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+
+            const data = await userService.refreshSession(
+                parsedData.data.refreshToken,
+                getClientIp(req),
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Session refreshed successfully",
+                data: data.user,
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode || 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
         }
     }
     async getCurrentUser(req: Request, res: Response) {
@@ -373,7 +417,11 @@ export class AuthController {
 
             const data = await userService.loginWithGoogleOAuth(
                 parsedData.data.code,
-                parsedData.data.state
+                parsedData.data.state,
+                getClientIp(req),
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
             );
 
             return res.status(200).json({
@@ -381,12 +429,13 @@ export class AuthController {
                 message: data.requiresTotp
                     ? "TOTP verification is required to complete Google sign-in"
                     : "Google login successful",
-                data: {
-                    user: data.user,
-                    requiresTotp: data.requiresTotp,
-                    preAuthToken: data.requiresTotp ? data.preAuthToken : undefined
-                },
-                token: data.requiresTotp ? undefined : data.token
+                    data: {
+                        user: data.user,
+                        requiresTotp: data.requiresTotp,
+                        preAuthToken: data.requiresTotp ? data.preAuthToken : undefined
+                    },
+                accessToken: data.requiresTotp ? undefined : data.accessToken,
+                refreshToken: data.requiresTotp ? undefined : data.refreshToken
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -406,14 +455,19 @@ export class AuthController {
 
             const data = await userService.completeGoogleTotpLogin(
                 parsedData.data.preAuthToken,
-                parsedData.data.code
+                parsedData.data.code,
+                getClientIp(req),
+                typeof req.headers["user-agent"] === "string"
+                    ? req.headers["user-agent"]
+                    : undefined
             );
 
             return res.status(200).json({
                 success: true,
                 message: "Google sign-in completed successfully",
                 data: data.user,
-                token: data.token
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -486,6 +540,87 @@ export class AuthController {
             return res.status(200).json({
                 success: true,
                 message: "TOTP has been disabled successfully"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async listSessions(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const data = await userService.listUserSessions(userId, req.authSessionId);
+            return res.status(200).json({
+                success: true,
+                message: "Sessions fetched successfully",
+                data
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async logoutCurrentSession(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            await userService.revokeCurrentSession(userId, req.authSessionId);
+            return res.status(200).json({
+                success: true,
+                message: "Current session revoked successfully"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async revokeSession(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            await userService.revokeSessionById(
+                userId,
+                req.params.sessionId,
+                req.authSessionId
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Session revoked successfully"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async revokeOtherSessions(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            await userService.revokeOtherSessions(userId, req.authSessionId);
+            return res.status(200).json({
+                success: true,
+                message: "Other sessions revoked successfully"
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(

@@ -50,9 +50,21 @@ const emailVerificationLimiter = createRateLimitMiddleware({
     },
 });
 
+const sessionLimiter = createRateLimitMiddleware({
+    keyPrefix: "session",
+    windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+    maxRequests: AUTH_RATE_LIMIT_MAX_REQUESTS * 2,
+    message: "Too many session requests. Please try again later.",
+    keyGenerator: (req) => {
+        // session management
+        return getClientIp(req);
+    },
+});
+
 router.post("/register", authLimiter, authController.createUser)
 router.post("/login", authLimiter, authController.loginUser)
 router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
+router.post("/refresh", sessionLimiter, authController.refreshSession)
 router.get("/oauth/google/url", authLimiter, authController.getGoogleOAuthUrl)
 router.post("/oauth/google/exchange", authLimiter, authController.exchangeGoogleOAuthCode)
 router.post("/oauth/google/verify-totp", authLimiter, authController.verifyGoogleOAuthTotp)
@@ -68,6 +80,10 @@ router.get(
 )
 
 router.get("/whoami", authorizedMiddleware, authController.getUserById);
+router.get("/sessions", authorizedMiddleware, authController.listSessions);
+router.post("/sessions/logout-current", authorizedMiddleware, authController.logoutCurrentSession);
+router.post("/sessions/revoke-others", authorizedMiddleware, authController.revokeOtherSessions);
+router.delete("/sessions/:sessionId", authorizedMiddleware, authController.revokeSession);
 router.get("/users", authorizedMiddleware, authController.searchUsers);
 router.get("/user/:id", authorizedMiddleware, authController.getCurrentUser);
 router.post("/totp/setup", authorizedMiddleware, authController.setupTotp);
