@@ -65,10 +65,14 @@ type ResetPasswordValidationData = {
   expiresAt: string;
 };
 
+type EmailVerificationData = {
+  email: string;
+};
+
 const getSafeErrorMessage = (
   error: unknown,
   fallback: string,
-  context: "login" | "register" | "oauth"
+  context: "login" | "register" | "oauth" | "verify-email" | "resend-verification"
 ) => {
   if (!axios.isAxiosError(error)) {
     return error instanceof Error ? error.message : fallback;
@@ -97,6 +101,10 @@ const getSafeErrorMessage = (
 
     if (status === 401 || responseMessage.includes("invalid email or password")) {
       return "The credential you entered is incorrect.";
+    }
+
+    if (status === 403 || responseMessage.includes("verify email first")) {
+      return "Verify your email first before signing in.";
     }
   }
 
@@ -131,6 +139,24 @@ const getSafeErrorMessage = (
     }
 
     return "Unable to continue with Google sign-in right now.";
+  }
+
+  if (context === "verify-email") {
+    if (responseMessage.includes("invalid or expired verification link") || status === 400) {
+      return "This verification link is invalid or has expired. Request a new one.";
+    }
+
+    if (status === 429) {
+      return "Too many verification attempts were made. Please wait a bit and try again.";
+    }
+  }
+
+  if (context === "resend-verification") {
+    if (status === 429) {
+      return "Too many verification requests were made. Please wait a bit and try again.";
+    }
+
+    return "Unable to send a verification email right now.";
   }
 
   return fallback;
@@ -340,6 +366,43 @@ export async function requestPasswordReset(email: string) {
     }
 
     throw new Error("Unable to send a password reset email right now.");
+  }
+}
+
+export async function resendVerificationEmail(email: string) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<null>>(
+      "/api/auth/resend-verification-email",
+      { email }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getSafeErrorMessage(
+        error,
+        "Unable to send a verification email right now.",
+        "resend-verification"
+      )
+    );
+  }
+}
+
+export async function verifyEmail(token: string) {
+  try {
+    const response = await axiosInstance.get<ApiResponse<EmailVerificationData>>(
+      `/api/auth/verify-email/${encodeURIComponent(token)}`
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getSafeErrorMessage(
+        error,
+        "Unable to verify your email right now.",
+        "verify-email"
+      )
+    );
   }
 }
 

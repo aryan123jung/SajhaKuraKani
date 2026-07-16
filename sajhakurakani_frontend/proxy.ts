@@ -18,6 +18,8 @@ export function proxy(request: NextRequest) {
   const isRegisterPage = pathname === "/register";
   const isRequestResetPasswordPage = pathname === "/request-reset-password";
   const isResetPasswordPage = pathname === "/reset-password";
+  const isResendVerificationPage = pathname === "/resend-verification";
+  const isVerifyEmailPage = pathname === "/verify-email";
   const isVerifyTwoFactorPage = pathname === "/verify-2fa";
   const isProtectedPage =
     pathname === "/" ||
@@ -43,6 +45,8 @@ export function proxy(request: NextRequest) {
       isRegisterPage ||
       isRequestResetPasswordPage ||
       isResetPasswordPage ||
+      isResendVerificationPage ||
+      isVerifyEmailPage ||
       isVerifyTwoFactorPage ||
       isProtectedPage)
   ) {
@@ -68,6 +72,8 @@ export const config = {
     "/register",
     "/request-reset-password",
     "/reset-password",
+    "/resend-verification",
+    "/verify-email",
     "/verify-2fa",
     "/user/:path*",
     "/admin/:path*",

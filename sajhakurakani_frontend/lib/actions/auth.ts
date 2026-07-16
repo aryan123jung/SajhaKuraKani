@@ -6,6 +6,7 @@ import {
   getGoogleOAuthUrl,
   login,
   register,
+  resendVerificationEmail,
   verifyLoginTotp,
   verifyGoogleOAuthTotp,
 } from "../api/auth";
@@ -20,6 +21,7 @@ import { assertValidCsrfToken, isValidCsrfToken } from "../csrf";
 import type {
   LoginActionState,
   RegisterActionState,
+  ResendVerificationActionState,
   VerifyTotpActionState,
 } from "./auth-state";
 
@@ -350,6 +352,55 @@ export async function registerAction(
   }
 
   redirect(
-    `/login?registered=1&email=${encodeURIComponent(email)}`
+    `/login?registered=1&verificationSent=1&email=${encodeURIComponent(email)}`
   );
+}
+
+export async function resendVerificationAction(
+  _previousState: ResendVerificationActionState,
+  formData: FormData
+): Promise<ResendVerificationActionState> {
+  void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      email: "",
+    };
+  }
+
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+
+  if (!email) {
+    return {
+      success: false,
+      message: "Enter the email address you want to verify.",
+      email,
+    };
+  }
+
+  try {
+    await resendVerificationEmail(email);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to send a verification email right now.",
+      email,
+    };
+  }
+
+  return {
+    success: true,
+    message:
+      "If an account exists for that email, a verification link has been sent.",
+    email,
+  };
 }

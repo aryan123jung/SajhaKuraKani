@@ -5,6 +5,8 @@ type LoginPageProps = {
   searchParams: Promise<{
     oauthError?: string;
     registered?: string;
+    verificationSent?: string;
+    verified?: string;
     reset?: string;
     email?: string;
   }>;
@@ -14,8 +16,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const csrfToken = await getCsrfToken();
   const notice =
-    params.registered === "1"
-      ? "Account created successfully. You can sign in now."
+    params.verified === "1"
+      ? "Email verified successfully. You can sign in now."
+      : params.registered === "1" || params.verificationSent === "1"
+      ? "Account created. Check your email to verify your account before signing in."
       : params.reset === "1"
       ? "Password reset successful. Sign in with your new password."
       : undefined;

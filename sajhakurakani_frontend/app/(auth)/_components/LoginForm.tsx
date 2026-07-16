@@ -30,6 +30,9 @@ export default function LoginForm({
       ...(state?.fields ?? {}),
     },
   };
+  const shouldShowResendVerificationLink = safeState.message
+    .toLowerCase()
+    .includes("verify your email first");
 
   return (
     <div className="grid min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,186,143,0.2),_transparent_26%),linear-gradient(135deg,#120f12_0%,#1d1a1f_40%,#221814_100%)] text-white lg:grid-cols-[0.9fr_1.1fr]">
@@ -127,7 +130,17 @@ export default function LoginForm({
 
             {safeState.message ? (
               <div className="rounded-2xl border border-[#ff885f]/35 bg-[#ff885f]/12 px-4 py-3 text-sm text-[#ffd4c4]">
-                {safeState.message}
+                <p>{safeState.message}</p>
+                {shouldShowResendVerificationLink ? (
+                  <Link
+                    href={`/resend-verification?email=${encodeURIComponent(
+                      safeState.fields.email || initialEmail || ""
+                    )}`}
+                    className="mt-3 inline-flex text-xs font-medium text-[#ffd9ca] underline underline-offset-4 transition hover:text-white"
+                  >
+                    Resend verification email
+                  </Link>
+                ) : null}
               </div>
             ) : null}
 

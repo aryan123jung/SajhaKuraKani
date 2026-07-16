@@ -42,6 +42,18 @@ export const initialRegisterActionState: RegisterActionState = {
   },
 };
 
+export type ResendVerificationActionState = {
+  success: boolean;
+  message: string;
+  email: string;
+};
+
+export const initialResendVerificationActionState: ResendVerificationActionState = {
+  success: false,
+  message: "",
+  email: "",
+};
+
 export type VerifyTotpActionState = {
   success: boolean;
   message: string;

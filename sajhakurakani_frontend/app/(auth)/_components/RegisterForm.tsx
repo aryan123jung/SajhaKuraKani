@@ -65,8 +65,8 @@ export default function RegisterForm({ csrfToken }: RegisterFormProps) {
             </h2>
             <p className="text-sm leading-6 text-white/55">
               Set up your account with your core profile details. Once
-              registered, you&apos;ll be taken back to login so you can sign in
-              right away.
+              registered, we&apos;ll send a verification link to your email before
+              sign-in is enabled.
             </p>
           </div>
 
