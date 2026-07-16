@@ -1,14 +1,22 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import {
   AUTH_COOKIE_NAME,
+  REFRESH_COOKIE_NAME,
   TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
 } from "./security-constants";
 const FIFTEEN_DAYS_IN_SECONDS = 60 * 60 * 24 * 15;
 const TEN_MINUTES_IN_SECONDS = 60 * 10;
 
 export async function getAuthToken() {
+  const headerStore = await headers();
+  const headerToken = headerStore.get("x-auth-token");
+  if (headerToken) {
+    return headerToken;
+  }
+
   const cookieStore = await cookies();
   return cookieStore.get(AUTH_COOKIE_NAME)?.value ?? null;
 }
@@ -21,7 +29,7 @@ export async function setAuthToken(token: string) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: FIFTEEN_DAYS_IN_SECONDS,
+    maxAge: TEN_MINUTES_IN_SECONDS,
     priority: "high",
   });
 }
@@ -29,6 +37,39 @@ export async function setAuthToken(token: string) {
 export async function clearAuthToken() {
   const cookieStore = await cookies();
   cookieStore.delete(AUTH_COOKIE_NAME);
+}
+
+export async function getRefreshToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get(REFRESH_COOKIE_NAME)?.value ?? null;
+}
+
+export async function setRefreshToken(token: string) {
+  const cookieStore = await cookies();
+  // secure cookie flags
+  cookieStore.set(REFRESH_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: FIFTEEN_DAYS_IN_SECONDS,
+    priority: "high",
+  });
+}
+
+export async function clearRefreshToken() {
+  const cookieStore = await cookies();
+  cookieStore.delete(REFRESH_COOKIE_NAME);
+}
+
+export async function setSessionTokens(accessToken: string, refreshToken: string) {
+  await setAuthToken(accessToken);
+  await setRefreshToken(refreshToken);
+}
+
+export async function clearSessionTokens() {
+  await clearAuthToken();
+  await clearRefreshToken();
 }
 
 export async function getTwoFactorPreAuthToken() {

@@ -5,18 +5,21 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import {
   getGoogleOAuthUrl,
   login,
+  logoutCurrentSession,
   register,
   resendVerificationEmail,
+  revokeOtherSessions,
+  revokeSession,
   verifyLoginTotp,
   verifyGoogleOAuthTotp,
 } from "../api/auth";
 import {
-  clearAuthToken,
+  clearSessionTokens,
   clearTwoFactorPreAuthToken,
-  getTwoFactorPreAuthToken,
-  setAuthToken,
+  setSessionTokens,
   setTwoFactorPreAuthToken,
 } from "../cookie";
+import { getTwoFactorPreAuthToken } from "../cookie";
 import { assertValidCsrfToken, isValidCsrfToken } from "../csrf";
 import type {
   LoginActionState,
@@ -68,7 +71,10 @@ export async function loginAction(
       redirect(`/verify-2fa?email=${encodeURIComponent(email)}&method=password`);
     }
 
-    await setAuthToken(response.token as string);
+    await setSessionTokens(
+      response.accessToken as string,
+      response.refreshToken as string
+    );
   } catch (error) {
     unstable_rethrow(error);
 
@@ -119,7 +125,13 @@ export async function logoutAction(formData: FormData) {
     redirect("/login");
   }
 
-  await clearAuthToken();
+  try {
+    await logoutCurrentSession();
+  } catch {
+    // Best effort only. We still clear local cookies below.
+  }
+
+  await clearSessionTokens();
   await clearTwoFactorPreAuthToken();
   redirect("/login");
 }
@@ -167,7 +179,10 @@ export async function completeTotpLoginAction(
       method === "google"
         ? await verifyGoogleOAuthTotp({ preAuthToken, code })
         : await verifyLoginTotp({ preAuthToken, code });
-    await setAuthToken(response.token as string);
+    await setSessionTokens(
+      response.accessToken as string,
+      response.refreshToken as string
+    );
     await clearTwoFactorPreAuthToken();
   } catch (error) {
     return {
@@ -403,4 +418,40 @@ export async function resendVerificationAction(
       "If an account exists for that email, a verification link has been sent.",
     email,
   };
+}
+
+export async function revokeSessionAction(formData: FormData) {
+  const isValidCsrf = await isValidCsrfToken(formData);
+
+  if (!isValidCsrf) {
+    redirect("/settings?sessionError=1");
+  }
+
+  const sessionId = String(formData.get("sessionId") || "").trim();
+
+  if (!sessionId) {
+    redirect("/settings?sessionError=1");
+  }
+
+  try {
+    await revokeSession(sessionId);
+    redirect("/settings?sessionRevoked=1");
+  } catch {
+    redirect("/settings?sessionError=1");
+  }
+}
+
+export async function revokeOtherSessionsAction(formData: FormData) {
+  const isValidCsrf = await isValidCsrfToken(formData);
+
+  if (!isValidCsrf) {
+    redirect("/settings?sessionError=1");
+  }
+
+  try {
+    await revokeOtherSessions();
+    redirect("/settings?otherSessionsRevoked=1");
+  } catch {
+    redirect("/settings?sessionError=1");
+  }
 }

@@ -35,7 +35,8 @@ type ApiResponse<T> = {
   success: boolean;
   message: string;
   data: T;
-  token?: string;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 type GoogleLoginUrlData = {
@@ -53,6 +54,15 @@ type LoginResponseData = {
   user: AuthUser;
   requiresTotp: boolean;
   preAuthToken?: string;
+};
+
+export type AuthSession = {
+  id: string;
+  current: boolean;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  userAgent: string;
 };
 
 type TotpSetupData = {
@@ -169,8 +179,11 @@ export async function login(payload: LoginPayload) {
       payload
     );
 
-    if (!response.data.data.requiresTotp && !response.data.token) {
-      throw new Error("Authentication token was not returned by the server.");
+    if (
+      !response.data.data.requiresTotp &&
+      (!response.data.accessToken || !response.data.refreshToken)
+    ) {
+      throw new Error("Authentication tokens were not returned by the server.");
     }
 
     return response.data;
@@ -228,8 +241,11 @@ export async function exchangeGoogleOAuthCode(payload: {
       payload
     );
 
-    if (!response.data.data.requiresTotp && !response.data.token) {
-      throw new Error("Authentication token was not returned by the server.");
+    if (
+      !response.data.data.requiresTotp &&
+      (!response.data.accessToken || !response.data.refreshToken)
+    ) {
+      throw new Error("Authentication tokens were not returned by the server.");
     }
 
     return response.data;
@@ -254,8 +270,8 @@ export async function verifyGoogleOAuthTotp(payload: {
       payload
     );
 
-    if (!response.data.token) {
-      throw new Error("Authentication token was not returned by the server.");
+    if (!response.data.accessToken || !response.data.refreshToken) {
+      throw new Error("Authentication tokens were not returned by the server.");
     }
 
     return response.data;
@@ -280,8 +296,8 @@ export async function verifyLoginTotp(payload: {
       payload
     );
 
-    if (!response.data.token) {
-      throw new Error("Authentication token was not returned by the server.");
+    if (!response.data.accessToken || !response.data.refreshToken) {
+      throw new Error("Authentication tokens were not returned by the server.");
     }
 
     return response.data;
@@ -484,5 +500,100 @@ export async function getCurrentUser() {
         ? error.message
         : "Unable to load your account right now."
     );
+  }
+}
+
+export async function refreshSession(refreshToken: string) {
+  try {
+    const response = await axiosInstance.post<ApiResponse<AuthUser>>(
+      "/api/auth/refresh",
+      { refreshToken }
+    );
+
+    if (!response.data.accessToken || !response.data.refreshToken) {
+      throw new Error("Authentication tokens were not returned by the server.");
+    }
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error("Unable to refresh your session right now.");
+  }
+}
+
+export async function getSessions() {
+  try {
+    const response = await axiosInstance.get<ApiResponse<AuthSession[]>>(
+      "/api/auth/sessions"
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error("Unable to load your active sessions right now.");
+  }
+}
+
+export async function logoutCurrentSession() {
+  try {
+    const response = await axiosInstance.post<ApiResponse<null>>(
+      "/api/auth/sessions/logout-current"
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error("Unable to end this session right now.");
+  }
+}
+
+export async function revokeSession(sessionId: string) {
+  try {
+    const response = await axiosInstance.delete<ApiResponse<null>>(
+      `/api/auth/sessions/${encodeURIComponent(sessionId)}`
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const responseMessage =
+        ((error.response?.data as { message?: string } | undefined)?.message || "").toLowerCase();
+
+      if (status === 400 || responseMessage.includes("use logout")) {
+        throw new Error("Use the main logout button to end the current session.");
+      }
+
+      if (status === 401) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+    }
+
+    throw new Error("Unable to revoke that session right now.");
+  }
+}
+
+export async function revokeOtherSessions() {
+  try {
+    const response = await axiosInstance.post<ApiResponse<null>>(
+      "/api/auth/sessions/revoke-others"
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    throw new Error("Unable to revoke your other sessions right now.");
   }
 }

@@ -1,19 +1,35 @@
 import ProtectedShell from "@/app/_components/ProtectedShell";
+import SessionManager from "@/app/_components/SessionManager";
 import TotpManager from "@/app/_components/TotpManager";
 import { getAuthToken } from "@/lib/cookie";
-import { getCurrentUser } from "@/lib/api/auth";
+import { getCurrentUser, getSessions } from "@/lib/api/auth";
 import { getCsrfToken } from "@/lib/csrf";
 
-export default async function SettingsPage() {
+type SettingsPageProps = {
+  searchParams: Promise<{
+    sessionRevoked?: string;
+    otherSessionsRevoked?: string;
+    sessionError?: string;
+  }>;
+};
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const params = await searchParams;
   const token = await getAuthToken();
   const csrfToken = await getCsrfToken();
   let user = null;
   let sessionMessage: string | null = null;
+  let sessions = [] as Awaited<ReturnType<typeof getSessions>>["data"];
 
   if (token) {
     try {
-      const response = await getCurrentUser();
+      const [userResponse, sessionsResponse] = await Promise.all([
+        getCurrentUser(),
+        getSessions(),
+      ]);
+      const response = userResponse;
       user = response.data;
+      sessions = sessionsResponse.data;
     } catch (error) {
       sessionMessage =
         error instanceof Error
@@ -21,6 +37,15 @@ export default async function SettingsPage() {
           : "Unable to load your account right now.";
     }
   }
+
+  const sessionNotice =
+    params.sessionRevoked === "1"
+      ? "The selected device session has been revoked."
+      : params.otherSessionsRevoked === "1"
+      ? "All other device sessions have been revoked."
+      : params.sessionError === "1"
+      ? "We could not update your sessions right now."
+      : null;
 
   return (
     <ProtectedShell
@@ -77,6 +102,14 @@ export default async function SettingsPage() {
           <TotpManager
             csrfToken={csrfToken}
             totpEnabled={Boolean(user.totpEnabled)}
+          />
+        ) : null}
+
+        {user && sessions.length > 0 ? (
+          <SessionManager
+            csrfToken={csrfToken}
+            sessions={sessions}
+            notice={sessionNotice}
           />
         ) : null}
       </div>

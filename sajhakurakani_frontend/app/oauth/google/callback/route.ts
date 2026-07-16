@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeGoogleOAuthCode } from "@/lib/api/auth";
 import {
   AUTH_COOKIE_NAME,
+  REFRESH_COOKIE_NAME,
   TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
 } from "@/lib/security-constants";
 
@@ -58,7 +59,15 @@ export async function GET(request: NextRequest) {
 
     const redirectResponse = NextResponse.redirect(new URL("/", request.url));
 
-    redirectResponse.cookies.set(AUTH_COOKIE_NAME, response.token as string, {
+    redirectResponse.cookies.set(AUTH_COOKIE_NAME, response.accessToken as string, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 10,
+      priority: "high",
+    });
+    redirectResponse.cookies.set(REFRESH_COOKIE_NAME, response.refreshToken as string, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
