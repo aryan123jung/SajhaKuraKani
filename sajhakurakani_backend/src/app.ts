@@ -9,6 +9,7 @@ import {
     GLOBAL_RATE_LIMIT_WINDOW_MS
 } from './configs';
 import { createRateLimitMiddleware } from './middleware/rate-limit.middleware';
+import { sanitizeRequestMiddleware } from './middleware/sanitize-request.middleware';
 
 dotenv.config();
 
@@ -23,8 +24,33 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 app.use(cors(corsOptions));
+app.use((req: Request, res: Response, next: Function) => {
+    // https implementation
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const isForwardedSecure =
+        typeof forwardedProto === "string" &&
+        forwardedProto.split(",")[0].trim() === "https";
+    const isProduction = process.env.NODE_ENV === "production";
+
+    if (isProduction) {
+        res.setHeader(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains; preload"
+        );
+
+        if (!req.secure && !isForwardedSecure) {
+            return res.status(400).json({
+                success: false,
+                message: "HTTPS is required in production.",
+            });
+        }
+    }
+
+    next();
+});
 app.use(express.json({ limit: '20kb' }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
+app.use(sanitizeRequestMiddleware);
 app.use(
     createRateLimitMiddleware({
         keyPrefix: 'global',
@@ -34,6 +60,7 @@ app.use(
     })
 );
 app.use((req: Request, res: Response, next: Function) => {
+    // https implementation
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');

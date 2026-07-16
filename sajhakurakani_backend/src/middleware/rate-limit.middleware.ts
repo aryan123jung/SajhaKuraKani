@@ -15,7 +15,7 @@ type RateLimitEntry = {
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-const getClientIp = (req: Request): string => {
+export const getClientIp = (req: Request): string => {
   const forwardedFor = req.headers["x-forwarded-for"];
 
   if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
@@ -32,6 +32,7 @@ const getKey = (req: Request, options: RateLimitOptions): string => {
 
 export const createRateLimitMiddleware = (options: RateLimitOptions) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    // rate limiting
     const now = Date.now();
     const key = getKey(req, options);
     const current = rateLimitStore.get(key);

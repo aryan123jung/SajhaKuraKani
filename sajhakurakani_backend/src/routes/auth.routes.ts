@@ -6,17 +6,26 @@ import {
 } from "../configs";
 import { AuthController } from "../controllers/auth.controller";
 import { authorizedMiddleware } from "../middleware/authorized.middleware";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.middleware";
+import { createRateLimitMiddleware, getClientIp } from "../middleware/rate-limit.middleware";
 import { uploads } from "../middleware/upload.middleware";
 
 let authController = new AuthController();
 
 const router = Router();
+const getScopedEmailKey = (emailValue: unknown) =>
+    typeof emailValue === "string" && emailValue.trim().length > 0
+        ? emailValue.trim().toLowerCase()
+        : "anonymous";
+
 const authLimiter = createRateLimitMiddleware({
     keyPrefix: "auth",
     windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
     maxRequests: AUTH_RATE_LIMIT_MAX_REQUESTS,
     message: "Too many authentication attempts. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return `${getClientIp(req)}:${getScopedEmailKey(req.body?.email)}`;
+    },
 });
 
 const passwordResetLimiter = createRateLimitMiddleware({
@@ -24,6 +33,10 @@ const passwordResetLimiter = createRateLimitMiddleware({
     windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
     maxRequests: RESET_RATE_LIMIT_MAX_REQUESTS,
     message: "Too many password reset attempts. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return `${getClientIp(req)}:${getScopedEmailKey(req.body?.email ?? req.query?.email)}`;
+    },
 });
 
 router.post("/register", authLimiter, authController.createUser)
