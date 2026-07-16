@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { securityStateStore } from "../security/security-state.store";
 
 type RateLimitOptions = {
   keyPrefix: string;
@@ -7,13 +8,6 @@ type RateLimitOptions = {
   message: string;
   keyGenerator?: (req: Request) => string;
 };
-
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
-};
-
-const rateLimitStore = new Map<string, RateLimitEntry>();
 
 export const getClientIp = (req: Request): string => {
   const forwardedFor = req.headers["x-forwarded-for"];
@@ -31,31 +25,25 @@ const getKey = (req: Request, options: RateLimitOptions): string => {
 };
 
 export const createRateLimitMiddleware = (options: RateLimitOptions) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    // rate limiting
-    const now = Date.now();
-    const key = getKey(req, options);
-    const current = rateLimitStore.get(key);
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // rate limiting
+      const key = getKey(req, options);
+      const { count, retryAfterMs } =
+        await securityStateStore.incrementRateLimitCounter(key, options.windowMs);
 
-    if (!current || current.resetAt <= now) {
-      rateLimitStore.set(key, {
-        count: 1,
-        resetAt: now + options.windowMs,
-      });
+      if (count > options.maxRequests) {
+        const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+        res.setHeader("Retry-After", retryAfterSeconds.toString());
+        return res.status(429).json({
+          success: false,
+          message: options.message,
+        });
+      }
+
       return next();
+    } catch (error) {
+      return next(error);
     }
-
-    if (current.count >= options.maxRequests) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
-      res.setHeader("Retry-After", retryAfterSeconds.toString());
-      return res.status(429).json({
-        success: false,
-        message: options.message,
-      });
-    }
-
-    current.count += 1;
-    rateLimitStore.set(key, current);
-    return next();
   };
 };

@@ -21,6 +21,7 @@
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
     "nodemailer": "^7.0.13",
+    "redis": "^6.1.0",
     "socket.io": "^4.8.3",
     "ts-jest": "^29.4.11",
     "uuid": "^11.1.1",

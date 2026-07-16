@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { CORS_ORIGINS } from "../configs";
 
 let io: SocketIOServer | null = null;
 
@@ -10,7 +11,7 @@ export const initSocket = (server: HttpServer): SocketIOServer => {
 
   io = new SocketIOServer(server, {
     cors: {
-      origin: ['http://localhost:3000'],
+      origin: CORS_ORIGINS,
       credentials: true,
     },
   });

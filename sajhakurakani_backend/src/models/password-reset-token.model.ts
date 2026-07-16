@@ -31,7 +31,6 @@ const passwordResetTokenSchema = new Schema<IPasswordResetToken>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     requestedIpHash: {
       type: String,

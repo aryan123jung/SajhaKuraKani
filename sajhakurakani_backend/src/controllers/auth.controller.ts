@@ -12,6 +12,7 @@ import {
     VerifyTotpDto,
     UpdateUserDto
 } from "../dtos/user.dtos";
+import { getClientIp } from "../middleware/rate-limit.middleware";
 import { QueryParams } from "../types/query.type";
 
 let userService = new UserService();
@@ -43,7 +44,7 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
-            const data = await userService.loginUser(parsedData.data);
+            const data = await userService.loginUser(parsedData.data, getClientIp(req));
             return res.status(200).json(
                 {
                     success: true,

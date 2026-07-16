@@ -24,12 +24,14 @@ import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
 import { IUser } from "../models/user.model";
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
+import { LoginDefenseSecurity } from "../security/login-defense.security";
 import { decryptText, encryptText } from "../utils/crypto.util";
 import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
 
 const userRepository = new UserRepository();
 const passwordResetTokenRepository = new PasswordResetTokenRepository();
+const loginDefenseSecurity = new LoginDefenseSecurity();
 const PASSWORD_HASH_ROUNDS = 12;
 const PASSWORD_TOTP_CHALLENGE_EXPIRES_IN = "5m";
 const PASSWORD_TOTP_CHALLENGE_TYPE = "password_login_totp";
@@ -37,6 +39,9 @@ const GOOGLE_TOTP_CHALLENGE_EXPIRES_IN = "10m";
 const GOOGLE_TOTP_CHALLENGE_TYPE = "google_oauth_totp";
 const DUMMY_PASSWORD_HASH =
   "$2b$12$tHmPxQF95C4C82Bbfkvtn.9zTzD/rif7Yi4Ee0Q5T3dJv3ikm/xmC";
+const GENERIC_LOGIN_FAILURE_MESSAGE = "The credential you entered is incorrect.";
+const ACCOUNT_LOCKED_MESSAGE = "Too many sign-in attempts. Try again later.";
+const IP_BLOCKED_MESSAGE = "Too many sign-in attempts from this network. Try again later.";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -134,18 +139,40 @@ export class UserService {
 
   private async registerFailedAuthAttempt(
     user: IUser,
-    failureMessage = "Invalid email or password"
+    requestIp?: string,
+    failureMessage = GENERIC_LOGIN_FAILURE_MESSAGE
   ) {
     const failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
     const isLocked = failedLoginAttempts >= AUTH_MAX_FAILED_ATTEMPTS;
+    const ipReputation = await loginDefenseSecurity.recordFailedAttempt(
+      requestIp,
+      user.email
+    );
 
     await userRepository.updateUser(user._id.toString(), {
       failedLoginAttempts,
       lockUntil: isLocked ? new Date(Date.now() + AUTH_LOCK_WINDOW_MS) : undefined,
     });
 
+    if (ipReputation.blocked) {
+      // ip reputation
+      this.logSecurityEvent("ip_reputation_blocked", {
+        ipAddress: requestIp,
+        failureCount: ipReputation.failureCount,
+        targetedAccounts: ipReputation.targetedAccounts,
+      });
+      throw new HttpError(429, IP_BLOCKED_MESSAGE);
+    }
+
     if (isLocked) {
-      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+      // account lockout
+      this.logSecurityEvent("account_locked_after_failed_sign_in_attempts", {
+        userId: user._id.toString(),
+        email: user.email,
+        failedLoginAttempts,
+        ipAddress: requestIp,
+      });
+      throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
     throw new HttpError(401, failureMessage);
@@ -343,23 +370,45 @@ export class UserService {
     return sanitizeUser(newUser);
   }
 
-  async loginUser(loginData: LoginUserDto) {
+  async loginUser(loginData: LoginUserDto, requestIp?: string) {
     const normalizedEmail = normalizeEmail(loginData.email);
+
+    if (await loginDefenseSecurity.isIpBlocked(requestIp)) {
+      // ip reputation
+      throw new HttpError(429, IP_BLOCKED_MESSAGE);
+    }
+
     const user = await userRepository.getUserByEmail(normalizedEmail, true);
 
     if (!user) {
       await bcryptjs.compare(loginData.password, DUMMY_PASSWORD_HASH);
-      throw new HttpError(401, "Invalid email or password");
+      const ipReputation = await loginDefenseSecurity.recordFailedAttempt(
+        requestIp,
+        normalizedEmail
+      );
+
+      if (ipReputation.blocked) {
+        // ip reputation
+        this.logSecurityEvent("ip_reputation_blocked", {
+          ipAddress: requestIp,
+          failureCount: ipReputation.failureCount,
+          targetedAccounts: ipReputation.targetedAccounts,
+        });
+        throw new HttpError(429, IP_BLOCKED_MESSAGE);
+      }
+
+      throw new HttpError(401, GENERIC_LOGIN_FAILURE_MESSAGE);
     }
 
     if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
-      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+      // account lockout
+      throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
     const validPassword = await bcryptjs.compare(loginData.password, user.password);
 
     if (!validPassword) {
-      await this.registerFailedAuthAttempt(user);
+      await this.registerFailedAuthAttempt(user, requestIp);
     }
 
     if (user.totpEnabled) {
@@ -437,7 +486,8 @@ export class UserService {
     }
 
     if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
-      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+      // account lockout
+      throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
     if (!user.totpEnabled || !user.totpSecretEncrypted) {
@@ -446,7 +496,7 @@ export class UserService {
 
     const decryptedSecret = decryptText(user.totpSecretEncrypted);
     if (!verifyTotpCode(decryptedSecret, code)) {
-      await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
+      await this.registerFailedAuthAttempt(user, undefined, "Invalid TOTP code");
     }
 
     await this.clearFailedAuthAttempts(user);
@@ -470,7 +520,8 @@ export class UserService {
     }
 
     if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
-      throw new HttpError(423, "Account temporarily locked due to too many failed login attempts");
+      // account lockout
+      throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
     if (!user.totpEnabled || !user.totpSecretEncrypted) {
@@ -479,7 +530,7 @@ export class UserService {
 
     const decryptedSecret = decryptText(user.totpSecretEncrypted);
     if (!verifyTotpCode(decryptedSecret, code)) {
-      await this.registerFailedAuthAttempt(user, "Invalid TOTP code");
+      await this.registerFailedAuthAttempt(user, undefined, "Invalid TOTP code");
     }
 
     await this.clearFailedAuthAttempts(user);
