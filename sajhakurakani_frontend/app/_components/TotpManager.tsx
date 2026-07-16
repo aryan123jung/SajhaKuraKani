@@ -13,10 +13,14 @@ import {
 } from "@/lib/actions/totp";
 
 type TotpManagerProps = {
+  csrfToken: string;
   totpEnabled: boolean;
 };
 
-export default function TotpManager({ totpEnabled }: TotpManagerProps) {
+export default function TotpManager({
+  csrfToken,
+  totpEnabled,
+}: TotpManagerProps) {
   const [setupState, setupAction, isSetupPending] = useActionState(
     beginTotpSetupAction,
     initialTotpSetupActionState
@@ -52,6 +56,7 @@ export default function TotpManager({ totpEnabled }: TotpManagerProps) {
         <div className="mt-6 space-y-5">
           {!setupStarted ? (
             <form action={setupAction}>
+              <input type="hidden" name="_csrf" value={csrfToken} />
               <button
                 type="submit"
                 disabled={isSetupPending}
@@ -101,6 +106,8 @@ export default function TotpManager({ totpEnabled }: TotpManagerProps) {
               </div>
 
               <form action={enableAction} className="space-y-4">
+                <input type="hidden" name="_csrf" value={csrfToken} />
+
                 <div className="space-y-2">
                   <label
                     htmlFor="enable-totp-code"
@@ -138,6 +145,8 @@ export default function TotpManager({ totpEnabled }: TotpManagerProps) {
         </div>
       ) : (
         <form action={disableAction} className="mt-6 space-y-4">
+          <input type="hidden" name="_csrf" value={csrfToken} />
+
           <div className="space-y-2">
             <label
               htmlFor="disable-totp-code"

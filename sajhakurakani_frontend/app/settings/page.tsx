@@ -2,9 +2,11 @@ import ProtectedShell from "@/app/_components/ProtectedShell";
 import TotpManager from "@/app/_components/TotpManager";
 import { getAuthToken } from "@/lib/cookie";
 import { getCurrentUser } from "@/lib/api/auth";
+import { getCsrfToken } from "@/lib/csrf";
 
 export default async function SettingsPage() {
   const token = await getAuthToken();
+  const csrfToken = await getCsrfToken();
   let user = null;
   let sessionMessage: string | null = null;
 
@@ -71,7 +73,12 @@ export default async function SettingsPage() {
           </section>
         ) : null}
 
-        {user ? <TotpManager totpEnabled={Boolean(user.totpEnabled)} /> : null}
+        {user ? (
+          <TotpManager
+            csrfToken={csrfToken}
+            totpEnabled={Boolean(user.totpEnabled)}
+          />
+        ) : null}
       </div>
     </ProtectedShell>
   );

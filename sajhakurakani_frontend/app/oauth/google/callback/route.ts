@@ -3,7 +3,7 @@ import { exchangeGoogleOAuthCode } from "@/lib/api/auth";
 import {
   AUTH_COOKIE_NAME,
   TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
-} from "@/lib/cookie";
+} from "@/lib/security-constants";
 
 function redirectWithError(request: NextRequest, message: string) {
   const url = new URL("/login", request.url);
@@ -45,10 +45,11 @@ export async function GET(request: NextRequest) {
         response.data.preAuthToken,
         {
           httpOnly: true,
-          sameSite: "lax",
+          sameSite: "strict",
           secure: process.env.NODE_ENV === "production",
           path: "/",
           maxAge: 60 * 10,
+          priority: "high",
         }
       );
 
@@ -59,10 +60,11 @@ export async function GET(request: NextRequest) {
 
     redirectResponse.cookies.set(AUTH_COOKIE_NAME, response.token as string, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "strict",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 15,
+      priority: "high",
     });
 
     return redirectResponse;

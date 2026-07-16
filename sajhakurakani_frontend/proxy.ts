@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  AUTH_COOKIE_NAME,
+  CSRF_COOKIE_NAME,
+} from "./lib/security-constants";
 
-const AUTH_COOKIE_NAME = "sajhakurakani_auth_token";
+const createCsrfToken = () =>
+  `${crypto.randomUUID().replace(/-/g, "")}${crypto.randomUUID().replace(/-/g, "")}`;
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
@@ -8,23 +13,58 @@ export function proxy(request: NextRequest) {
 
   const isLoginPage = pathname === "/login";
   const isRegisterPage = pathname === "/register";
+  const isRequestResetPasswordPage = pathname === "/request-reset-password";
+  const isResetPasswordPage = pathname === "/reset-password";
+  const isVerifyTwoFactorPage = pathname === "/verify-2fa";
   const isProtectedPage =
     pathname === "/" ||
     pathname === "/settings" ||
     pathname.startsWith("/user") ||
     pathname.startsWith("/admin");
 
+  let response: NextResponse;
+
   if ((isLoginPage || isRegisterPage) && token) {
-    return NextResponse.redirect(new URL("/", request.url));
+    response = NextResponse.redirect(new URL("/", request.url));
+  } else if (isProtectedPage && !token) {
+    response = NextResponse.redirect(new URL("/login", request.url));
+  } else {
+    response = NextResponse.next();
   }
 
-  if (isProtectedPage && !token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (
+    !request.cookies.get(CSRF_COOKIE_NAME) &&
+    (isLoginPage ||
+      isRegisterPage ||
+      isRequestResetPasswordPage ||
+      isResetPasswordPage ||
+      isVerifyTwoFactorPage ||
+      isProtectedPage)
+  ) {
+    // csrf protection
+    // secure cookie flags
+    response.cookies.set(CSRF_COOKIE_NAME, createCsrfToken(), {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      priority: "high",
+    });
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: ["/", "/settings", "/login", "/register", "/user/:path*", "/admin/:path*"],
+  matcher: [
+    "/",
+    "/settings",
+    "/login",
+    "/register",
+    "/request-reset-password",
+    "/reset-password",
+    "/verify-2fa",
+    "/user/:path*",
+    "/admin/:path*",
+  ],
 };

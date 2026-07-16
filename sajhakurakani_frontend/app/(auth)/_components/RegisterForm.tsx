@@ -5,7 +5,11 @@ import { useActionState, useState } from "react";
 import { registerAction, startGoogleLoginAction } from "@/lib/actions/auth";
 import { initialRegisterActionState } from "@/lib/actions/auth-state";
 
-export default function RegisterForm() {
+type RegisterFormProps = {
+  csrfToken: string;
+};
+
+export default function RegisterForm({ csrfToken }: RegisterFormProps) {
   const [state, formAction, isPending] = useActionState(
     registerAction,
     initialRegisterActionState
@@ -67,6 +71,8 @@ export default function RegisterForm() {
           </div>
 
           <form action={formAction} className="space-y-5">
+            <input type="hidden" name="_csrf" value={csrfToken} />
+
             <div className="grid gap-5 sm:grid-cols-2">
               <div className="space-y-2">
                 <label

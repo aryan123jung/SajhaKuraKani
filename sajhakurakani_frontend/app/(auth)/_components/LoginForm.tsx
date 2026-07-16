@@ -6,12 +6,14 @@ import { loginAction, startGoogleLoginAction } from "@/lib/actions/auth";
 import { initialLoginActionState } from "@/lib/actions/auth-state";
 
 type LoginFormProps = {
+  csrfToken: string;
   oauthError?: string;
   notice?: string;
   initialEmail?: string;
 };
 
 export default function LoginForm({
+  csrfToken,
   oauthError,
   notice,
   initialEmail,
@@ -65,6 +67,8 @@ export default function LoginForm({
           </div>
 
           <form action={formAction} className="space-y-5">
+            <input type="hidden" name="_csrf" value={csrfToken} />
+
             <div className="space-y-2">
               <label
                 htmlFor="email"

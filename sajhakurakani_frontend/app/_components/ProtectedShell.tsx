@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logoutAction } from "@/lib/actions/auth";
 import type { AuthUser } from "@/lib/api/auth";
+import { getCsrfToken } from "@/lib/csrf";
 
 type ProtectedShellProps = {
   children: React.ReactNode;
@@ -14,12 +15,14 @@ const navItems: Array<{ href: "/" | "/settings"; label: string }> = [
   { href: "/settings", label: "Settings" },
 ];
 
-export default function ProtectedShell({
+export default async function ProtectedShell({
   children,
   currentPath,
   user,
   sessionMessage,
 }: ProtectedShellProps) {
+  const csrfToken = await getCsrfToken();
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,190,150,0.18),_transparent_30%),linear-gradient(180deg,#141215_0%,#1b171b_60%,#111013_100%)] px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-7xl overflow-hidden rounded-[36px] border border-white/10 bg-[rgba(18,16,20,0.72)] shadow-[0_30px_100px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:grid-cols-[280px_1fr]">
@@ -71,6 +74,7 @@ export default function ProtectedShell({
           </nav>
 
           <form action={logoutAction} className="mt-8">
+            <input type="hidden" name="_csrf" value={csrfToken} />
             <button
               type="submit"
               className="inline-flex w-full items-center justify-center rounded-2xl border border-white/12 bg-white/4 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-white/8"

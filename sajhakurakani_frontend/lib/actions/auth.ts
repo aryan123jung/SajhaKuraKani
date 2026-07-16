@@ -16,6 +16,7 @@ import {
   setAuthToken,
   setTwoFactorPreAuthToken,
 } from "../cookie";
+import { assertValidCsrfToken, isValidCsrfToken } from "../csrf";
 import type {
   LoginActionState,
   RegisterActionState,
@@ -27,6 +28,21 @@ export async function loginAction(
   formData: FormData
 ): Promise<LoginActionState> {
   void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      fields: {
+        email: "",
+        password: "",
+      },
+    };
+  }
 
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
@@ -68,8 +84,9 @@ export async function loginAction(
   redirect("/");
 }
 
-export async function startGoogleLoginAction() {
+export async function startGoogleLoginAction(formData: FormData) {
   try {
+    await assertValidCsrfToken(formData);
     const response = await getGoogleOAuthUrl();
     redirect(response.data.authorizationUrl);
   } catch (error) {
@@ -93,7 +110,13 @@ export async function startGoogleLoginAction() {
   }
 }
 
-export async function logoutAction() {
+export async function logoutAction(formData: FormData) {
+  const isValidCsrf = await isValidCsrfToken(formData);
+
+  if (!isValidCsrf) {
+    redirect("/login");
+  }
+
   await clearAuthToken();
   await clearTwoFactorPreAuthToken();
   redirect("/login");
@@ -104,6 +127,18 @@ export async function completeTotpLoginAction(
   formData: FormData
 ): Promise<VerifyTotpActionState> {
   void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      code: "",
+    };
+  }
 
   const code = String(formData.get("code") || "").trim();
   const method = String(formData.get("method") || "password").trim();
@@ -146,7 +181,13 @@ export async function completeTotpLoginAction(
   redirect("/");
 }
 
-export async function cancelTotpLoginAction() {
+export async function cancelTotpLoginAction(formData: FormData) {
+  const isValidCsrf = await isValidCsrfToken(formData);
+
+  if (!isValidCsrf) {
+    redirect("/login");
+  }
+
   await clearTwoFactorPreAuthToken();
   redirect("/login");
 }
@@ -155,6 +196,26 @@ export async function registerAction(
   _previousState: RegisterActionState,
   formData: FormData
 ): Promise<RegisterActionState> {
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      fields: {
+        firstName: "",
+        lastName: "",
+        username: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+      },
+    };
+  }
+
   const firstName = String(formData.get("firstName") || "").trim();
   const lastName = String(formData.get("lastName") || "").trim();
   const username = String(formData.get("username") || "").trim().toLowerCase();

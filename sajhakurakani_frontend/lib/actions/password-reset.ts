@@ -5,6 +5,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from "../api/auth";
+import { assertValidCsrfToken } from "../csrf";
 import type {
   RequestPasswordResetActionState,
   ResetPasswordActionState,
@@ -22,6 +23,18 @@ export async function requestPasswordResetAction(
   formData: FormData
 ): Promise<RequestPasswordResetActionState> {
   void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      email: "",
+    };
+  }
 
   const email = String(formData.get("email") || "").trim().toLowerCase();
 
@@ -60,6 +73,21 @@ export async function resetPasswordAction(
   formData: FormData
 ): Promise<ResetPasswordActionState> {
   void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      fields: {
+        newPassword: "",
+        confirmPassword: "",
+      },
+    };
+  }
 
   const newPassword = String(formData.get("newPassword") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");

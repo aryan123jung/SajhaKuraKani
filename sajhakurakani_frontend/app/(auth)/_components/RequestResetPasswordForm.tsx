@@ -5,7 +5,13 @@ import { useActionState } from "react";
 import { requestPasswordResetAction } from "@/lib/actions/password-reset";
 import { initialRequestPasswordResetActionState } from "@/lib/actions/auth-state";
 
-export default function RequestResetPasswordForm() {
+type RequestResetPasswordFormProps = {
+  csrfToken: string;
+};
+
+export default function RequestResetPasswordForm({
+  csrfToken,
+}: RequestResetPasswordFormProps) {
   const [state, formAction, isPending] = useActionState(
     requestPasswordResetAction,
     initialRequestPasswordResetActionState
@@ -26,6 +32,8 @@ export default function RequestResetPasswordForm() {
         </p>
 
         <form action={formAction} className="mt-8 space-y-5">
+          <input type="hidden" name="_csrf" value={csrfToken} />
+
           <div className="space-y-2">
             <label
               htmlFor="email"

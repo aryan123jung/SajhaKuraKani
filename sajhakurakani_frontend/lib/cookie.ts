@@ -1,10 +1,10 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-
-export const AUTH_COOKIE_NAME = "sajhakurakani_auth_token";
-export const TWO_FACTOR_PRE_AUTH_COOKIE_NAME =
-  "sajhakurakani_two_factor_pre_auth";
+import {
+  AUTH_COOKIE_NAME,
+  TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
+} from "./security-constants";
 const FIFTEEN_DAYS_IN_SECONDS = 60 * 60 * 24 * 15;
 const TEN_MINUTES_IN_SECONDS = 60 * 10;
 
@@ -15,12 +15,14 @@ export async function getAuthToken() {
 
 export async function setAuthToken(token: string) {
   const cookieStore = await cookies();
+  // secure cookie flags
   cookieStore.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: FIFTEEN_DAYS_IN_SECONDS,
+    priority: "high",
   });
 }
 
@@ -36,12 +38,14 @@ export async function getTwoFactorPreAuthToken() {
 
 export async function setTwoFactorPreAuthToken(token: string) {
   const cookieStore = await cookies();
+  // secure cookie flags
   cookieStore.set(TWO_FACTOR_PRE_AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: TEN_MINUTES_IN_SECONDS,
+    priority: "high",
   });
 }
 

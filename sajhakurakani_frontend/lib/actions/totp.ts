@@ -2,15 +2,30 @@
 
 import { redirect } from "next/navigation";
 import { disableTotp, enableTotp, startTotpSetup } from "../api/auth";
+import { assertValidCsrfToken } from "../csrf";
 import type {
   TotpCodeActionState,
   TotpSetupActionState,
 } from "./auth-state";
 
 export async function beginTotpSetupAction(
-  _previousState: TotpSetupActionState
+  _previousState: TotpSetupActionState,
+  formData: FormData
 ): Promise<TotpSetupActionState> {
   void _previousState;
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      manualEntryKey: "",
+      otpAuthUrl: "",
+    };
+  }
 
   try {
     const response = await startTotpSetup();
@@ -39,6 +54,19 @@ export async function enableTotpAction(
   _previousState: TotpCodeActionState,
   formData: FormData
 ): Promise<TotpCodeActionState> {
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      code: "",
+    };
+  }
+
   const code = String(formData.get("code") || "").trim();
 
   if (!/^\d{6}$/.test(code)) {
@@ -69,6 +97,19 @@ export async function disableTotpAction(
   _previousState: TotpCodeActionState,
   formData: FormData
 ): Promise<TotpCodeActionState> {
+  try {
+    await assertValidCsrfToken(formData);
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your session security check failed. Refresh and try again.",
+      code: "",
+    };
+  }
+
   const code = String(formData.get("code") || "").trim();
 
   if (!/^\d{6}$/.test(code)) {

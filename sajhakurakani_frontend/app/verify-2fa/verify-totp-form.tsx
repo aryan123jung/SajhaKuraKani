@@ -10,11 +10,13 @@ import {
 } from "@/lib/actions/auth-state";
 
 type VerifyTotpFormProps = {
+  csrfToken: string;
   email?: string;
   method: "google" | "password";
 };
 
 export default function VerifyTotpForm({
+  csrfToken,
   email,
   method,
 }: VerifyTotpFormProps) {
@@ -48,6 +50,7 @@ export default function VerifyTotpForm({
         </div>
 
         <form action={formAction} className="space-y-5">
+          <input type="hidden" name="_csrf" value={csrfToken} />
           <input type="hidden" name="method" value={method} />
 
           <div className="space-y-2">

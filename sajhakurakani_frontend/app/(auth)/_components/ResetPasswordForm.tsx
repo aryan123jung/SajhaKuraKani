@@ -6,11 +6,13 @@ import { resetPasswordAction } from "@/lib/actions/password-reset";
 import { initialResetPasswordActionState } from "@/lib/actions/auth-state";
 
 type ResetPasswordFormProps = {
+  csrfToken: string;
   token: string;
   email: string;
 };
 
 export default function ResetPasswordForm({
+  csrfToken,
   token,
   email,
 }: ResetPasswordFormProps) {
@@ -34,6 +36,8 @@ export default function ResetPasswordForm({
         </p>
 
         <form action={formAction} className="mt-8 space-y-5">
+          <input type="hidden" name="_csrf" value={csrfToken} />
+
           <div className="space-y-2">
             <label
               htmlFor="newPassword"

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ResetPasswordForm from "../_components/ResetPasswordForm";
 import { validatePasswordResetToken } from "@/lib/api/auth";
+import { getCsrfToken } from "@/lib/csrf";
 
 type ResetPasswordPageProps = {
   searchParams: Promise<{
@@ -12,6 +13,7 @@ export default async function ResetPasswordPage({
   searchParams,
 }: ResetPasswordPageProps) {
   const params = await searchParams;
+  const csrfToken = await getCsrfToken();
   const token = params.token?.trim();
 
   if (!token) {
@@ -52,7 +54,13 @@ export default async function ResetPasswordPage({
   }
 
   if (validationEmail) {
-    return <ResetPasswordForm token={token} email={validationEmail} />;
+    return (
+      <ResetPasswordForm
+        csrfToken={csrfToken}
+        token={token}
+        email={validationEmail}
+      />
+    );
   }
 
   return (

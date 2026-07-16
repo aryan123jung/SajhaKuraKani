@@ -1,4 +1,5 @@
 import LoginForm from "../_components/LoginForm";
+import { getCsrfToken } from "@/lib/csrf";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -11,6 +12,7 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
+  const csrfToken = await getCsrfToken();
   const notice =
     params.registered === "1"
       ? "Account created successfully. You can sign in now."
@@ -20,6 +22,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <LoginForm
+      csrfToken={csrfToken}
       oauthError={params.oauthError}
       notice={notice}
       initialEmail={params.email}
