@@ -9,10 +9,12 @@ import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
+  JWT_ALGORITHM,
   JWT_AUDIENCE,
   JWT_EXPIRES_IN,
   JWT_ISSUER,
-  JWT_SECRET,
+  JWT_PRIVATE_KEY,
+  JWT_PUBLIC_KEY,
   RESET_PASSWORD_ENFORCE_IP_MATCH,
   RESET_TOKEN_EXPIRY_MS,
   TOTP_ISSUER,
@@ -123,13 +125,18 @@ export class UserService {
   }
 
   private createJwtForUser(user: IUser) {
+    if (!JWT_PRIVATE_KEY) {
+      throw new HttpError(500, "JWT private key is not configured on the server");
+    }
+
     const payload = {
       id: user._id.toString(),
       email: user.email,
       role: user.role,
     };
 
-    return jwt.sign(payload, JWT_SECRET, {
+    return jwt.sign(payload, JWT_PRIVATE_KEY, {
+      algorithm: JWT_ALGORITHM,
       expiresIn: JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
@@ -196,13 +203,18 @@ export class UserService {
     tokenType: string,
     expiresIn: string
   ) {
+    if (!JWT_PRIVATE_KEY) {
+      throw new HttpError(500, "JWT private key is not configured on the server");
+    }
+
     return jwt.sign(
       {
         id: user._id.toString(),
         tokenType,
       },
-      JWT_SECRET,
+      JWT_PRIVATE_KEY,
       {
+        algorithm: JWT_ALGORITHM,
         expiresIn: expiresIn as jwt.SignOptions["expiresIn"],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
@@ -218,8 +230,13 @@ export class UserService {
   ) {
     let decodedToken: TotpChallengePayload;
 
+    if (!JWT_PUBLIC_KEY) {
+      throw new HttpError(500, "JWT public key is not configured on the server");
+    }
+
     try {
-      decodedToken = jwt.verify(token, JWT_SECRET, {
+      decodedToken = jwt.verify(token, JWT_PUBLIC_KEY, {
+        algorithms: [JWT_ALGORITHM],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
       }) as TotpChallengePayload;

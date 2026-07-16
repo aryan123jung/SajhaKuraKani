@@ -1,6 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { JWT_AUDIENCE, JWT_ISSUER, JWT_SECRET } from "../configs";
+import {
+  JWT_ALGORITHM,
+  JWT_AUDIENCE,
+  JWT_ISSUER,
+  JWT_PUBLIC_KEY,
+} from "../configs";
 import { HttpError } from "../errors/http-error";
 import { IUser } from "../models/user.model";
 import { UserRepository } from "../repositories/user.repository";
@@ -40,9 +45,13 @@ export const authorizedMiddleware = async (
     }
 
     let decodedToken: AuthTokenPayload;
+    if (!JWT_PUBLIC_KEY) {
+      throw new HttpError(500, "JWT public key is not configured on the server");
+    }
 
     try {
-      decodedToken = jwt.verify(token, JWT_SECRET, {
+      decodedToken = jwt.verify(token, JWT_PUBLIC_KEY, {
+        algorithms: [JWT_ALGORITHM],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
       }) as AuthTokenPayload;

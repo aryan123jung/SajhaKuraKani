@@ -1,10 +1,24 @@
 import dotenv from 'dotenv'
 dotenv.config();
 import path from "path";
+import fs from "fs";
+import type { Algorithm } from "jsonwebtoken";
 
 const parseNumber = (value: string | undefined, fallback: number): number => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const loadFileIfPresent = (filePath?: string) => {
+    if (!filePath) {
+        return "";
+    }
+
+    try {
+        return fs.readFileSync(filePath, "utf8");
+    } catch {
+        return "";
+    }
 };
 
 export const PORT: number = process.env.PORT ? parseInt(process.env.PORT) : 6060;
@@ -14,10 +28,21 @@ export const HTTPS_CERT_PATH: string = process.env.HTTPS_CERT_PATH || path.resol
 
 export const MONGODB_URI:string = process.env.MONGODB_URI || 'mongodb://localhost:27017/default_db';
 
-export const JWT_SECRET: string = process.env.JWT_SECRET || 'ungafulga';
+export const JWT_ALGORITHM: Algorithm = "RS256";
+export const JWT_PRIVATE_KEY_PATH: string =
+    process.env.JWT_PRIVATE_KEY_PATH ||
+    path.resolve(process.cwd(), "keys/local/jwt-private.pem");
+export const JWT_PUBLIC_KEY_PATH: string =
+    process.env.JWT_PUBLIC_KEY_PATH ||
+    path.resolve(process.cwd(), "keys/local/jwt-public.pem");
+export const JWT_PRIVATE_KEY: string =
+    process.env.JWT_PRIVATE_KEY || loadFileIfPresent(JWT_PRIVATE_KEY_PATH);
+export const JWT_PUBLIC_KEY: string =
+    process.env.JWT_PUBLIC_KEY || loadFileIfPresent(JWT_PUBLIC_KEY_PATH);
 export const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '15d';
 export const JWT_ISSUER: string = process.env.JWT_ISSUER || 'sajhakurakani-api';
 export const JWT_AUDIENCE: string = process.env.JWT_AUDIENCE || 'sajhakurakani-client';
+export const TOTP_ENCRYPTION_KEY: string = process.env.TOTP_ENCRYPTION_KEY || "";
 export const CLIENT_URL: string = process.env.CLIENT_URL || 'https://localhost:3000';
 export const CORS_ORIGINS: string[] = (process.env.CORS_ORIGINS || CLIENT_URL)
     .split(',')
