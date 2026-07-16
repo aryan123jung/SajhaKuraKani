@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   AUTH_COOKIE_NAME,
   CSRF_COOKIE_NAME,
+  TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
 } from "./lib/security-constants";
 
 const createCsrfToken = () =>
@@ -9,6 +10,8 @@ const createCsrfToken = () =>
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const twoFactorPreAuthToken =
+    request.cookies.get(TWO_FACTOR_PRE_AUTH_COOKIE_NAME)?.value;
   const { pathname } = request.nextUrl;
 
   const isLoginPage = pathname === "/login";
@@ -26,6 +29,8 @@ export function proxy(request: NextRequest) {
 
   if ((isLoginPage || isRegisterPage) && token) {
     response = NextResponse.redirect(new URL("/", request.url));
+  } else if (isVerifyTwoFactorPage && !twoFactorPreAuthToken) {
+    response = NextResponse.redirect(new URL("/login", request.url));
   } else if (isProtectedPage && !token) {
     response = NextResponse.redirect(new URL("/login", request.url));
   } else {

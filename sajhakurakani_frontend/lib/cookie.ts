@@ -18,7 +18,7 @@ export async function setAuthToken(token: string) {
   // secure cookie flags
   cookieStore.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: FIFTEEN_DAYS_IN_SECONDS,
@@ -41,7 +41,7 @@ export async function setTwoFactorPreAuthToken(token: string) {
   // secure cookie flags
   cookieStore.set(TWO_FACTOR_PRE_AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: TEN_MINUTES_IN_SECONDS,

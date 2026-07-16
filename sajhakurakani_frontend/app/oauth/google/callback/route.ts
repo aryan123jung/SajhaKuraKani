@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         response.data.preAuthToken,
         {
           httpOnly: true,
-          sameSite: "strict",
+          sameSite: "lax",
           secure: process.env.NODE_ENV === "production",
           path: "/",
           maxAge: 60 * 10,
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     redirectResponse.cookies.set(AUTH_COOKIE_NAME, response.token as string, {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 15,
