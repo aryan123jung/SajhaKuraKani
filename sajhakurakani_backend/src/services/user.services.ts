@@ -813,7 +813,7 @@ export class UserService {
     if (
       user.passwordChangedAt &&
       decodedToken.iat &&
-      decodedToken.iat * 1000 < user.passwordChangedAt.getTime()
+      decodedToken.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)
     ) {
       await authSessionRepository.revokeSession(session._id.toString(), "password_changed");
       throw new HttpError(401, "Refresh token is invalid or expired");

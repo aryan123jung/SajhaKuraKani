@@ -82,7 +82,8 @@ export const authorizedMiddleware = async (
     if (
       userWithSecurityFields.passwordChangedAt &&
       decodedToken.iat &&
-      decodedToken.iat * 1000 < userWithSecurityFields.passwordChangedAt.getTime()
+      decodedToken.iat <
+        Math.floor(userWithSecurityFields.passwordChangedAt.getTime() / 1000)
     ) {
       throw new HttpError(401, "Authorization token is no longer valid");
     }
