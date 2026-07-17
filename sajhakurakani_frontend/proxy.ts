@@ -62,29 +62,60 @@ const clearSessionCookies = (response: NextResponse) => {
 };
 
 async function tryRefreshSession(request: NextRequest) {
-  const refreshResponse = await fetch(new URL("/api/session/refresh", request.url), {
-    method: "POST",
-    headers: {
-      cookie: request.headers.get("cookie") ?? "",
-      "user-agent": request.headers.get("user-agent") ?? "",
-    },
-    cache: "no-store",
-  });
+  const refreshUrl = new URL("/api/session/refresh", request.url);
+  const shouldAllowLocalSelfSignedCert =
+    process.env.NODE_ENV !== "production" &&
+    refreshUrl.protocol === "https:" &&
+    refreshUrl.hostname === "localhost";
+  const previousTlsSetting = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
 
-  if (!refreshResponse.ok) {
+  try {
+    if (shouldAllowLocalSelfSignedCert) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    }
+
+    const refreshResponse = await fetch(refreshUrl, {
+      method: "POST",
+      headers: {
+        cookie: request.headers.get("cookie") ?? "",
+        "user-agent": request.headers.get("user-agent") ?? "",
+      },
+      cache: "no-store",
+    });
+
+    if (shouldAllowLocalSelfSignedCert) {
+      if (typeof previousTlsSetting === "string") {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsSetting;
+      } else {
+        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+      }
+    }
+
+    if (!refreshResponse.ok) {
+      return null;
+    }
+
+    const data = (await refreshResponse.json()) as {
+      accessToken?: string;
+      refreshToken?: string;
+    };
+
+    if (!data.accessToken || !data.refreshToken) {
+      return null;
+    }
+
+    return data;
+  } catch {
     return null;
+  } finally {
+    if (shouldAllowLocalSelfSignedCert) {
+      if (typeof previousTlsSetting === "string") {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsSetting;
+      } else {
+        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+      }
+    }
   }
-
-  const data = (await refreshResponse.json()) as {
-    accessToken?: string;
-    refreshToken?: string;
-  };
-
-  if (!data.accessToken || !data.refreshToken) {
-    return null;
-  }
-
-  return data;
 }
 
 export async function proxy(request: NextRequest) {
