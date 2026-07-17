@@ -105,7 +105,7 @@ export default function RegisterForm({ csrfToken }: RegisterFormProps) {
                   name="username"
                   type="text"
                   defaultValue={safeState.fields.username}
-                  placeholder="aryan.secure"
+                  placeholder="john.secure_123"
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
