@@ -67,7 +67,7 @@ export default function RegisterForm({ csrfToken }: RegisterFormProps) {
                   name="firstName"
                   type="text"
                   defaultValue={safeState.fields.firstName}
-                  placeholder="Aryan"
+                  placeholder="John"
                   autoComplete="given-name"
                   className="auth-input"
                 />
@@ -85,7 +85,7 @@ export default function RegisterForm({ csrfToken }: RegisterFormProps) {
                   name="lastName"
                   type="text"
                   defaultValue={safeState.fields.lastName}
-                  placeholder="Chhetri"
+                  placeholder="Doe"
                   autoComplete="family-name"
                   className="auth-input"
                 />
