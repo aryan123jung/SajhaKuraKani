@@ -366,9 +366,7 @@ export async function registerAction(
     };
   }
 
-  redirect(
-    `/login?registered=1&verificationSent=1&email=${encodeURIComponent(email)}`
-  );
+  redirect(`/check-email?email=${encodeURIComponent(email)}`);
 }
 
 export async function resendVerificationAction(
