@@ -40,7 +40,7 @@ export default function RegisterForm({ csrfToken }: RegisterFormProps) {
     <AuthShell
       eyebrow="Create account"
       title="Join SajhaKuraKani"
-      description="Set up your core profile details first. We’ll send a verification link to your email before password sign-in becomes active."
+      description="Enter your details to create your account."
       width="wide"
       footer={
         <div className="auth-foot-row">

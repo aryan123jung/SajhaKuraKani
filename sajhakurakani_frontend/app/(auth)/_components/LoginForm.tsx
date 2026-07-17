@@ -39,7 +39,7 @@ export default function LoginForm({
     <AuthShell
       eyebrow="Welcome back"
       title="Sign in to your account"
-      description="Enter your email and password first. If this account has two-factor authentication enabled, we’ll take you to the verification step next."
+      description="Enter your credentials to continue."
       width="narrow"
       footer={
         <div className="auth-foot-row">
