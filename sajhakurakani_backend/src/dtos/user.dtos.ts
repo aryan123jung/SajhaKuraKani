@@ -99,6 +99,16 @@ export const FriendOverviewQueryDto = z.object({
 });
 export type FriendOverviewQueryDto = z.infer<typeof FriendOverviewQueryDto>;
 
+export const SearchUsersQueryDto = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    size: z.coerce.number().int().min(1).max(50).default(10),
+    search: z.preprocess(
+        normalizeOptionalSearch,
+        z.string().trim().max(80).optional()
+    ),
+});
+export type SearchUsersQueryDto = z.infer<typeof SearchUsersQueryDto>;
+
 export const SendFriendRequestDto = z.object({
     recipientUserId: objectIdSchema,
 });

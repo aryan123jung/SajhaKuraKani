@@ -86,6 +86,17 @@ const friendActionLimiter = createRateLimitMiddleware({
     },
 });
 
+const userSearchLimiter = createRateLimitMiddleware({
+    keyPrefix: "user-search",
+    windowMs: FRIEND_RATE_LIMIT_WINDOW_MS,
+    maxRequests: FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
+    message: "Too many user search requests. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return `${getClientIp(req)}:${req.user?._id?.toString() || "anonymous"}`;
+    },
+});
+
 router.post("/register", authLimiter, authController.createUser)
 router.post("/login", authLimiter, authController.loginUser)
 router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
@@ -109,7 +120,7 @@ router.get("/sessions", authorizedMiddleware, authController.listSessions);
 router.post("/sessions/logout-current", authorizedMiddleware, authController.logoutCurrentSession);
 router.post("/sessions/revoke-others", authorizedMiddleware, authController.revokeOtherSessions);
 router.delete("/sessions/:sessionId", authorizedMiddleware, authController.revokeSession);
-router.get("/users", authorizedMiddleware, authController.searchUsers);
+router.get("/users", authorizedMiddleware, userSearchLimiter, authController.searchUsers);
 router.get("/friends", authorizedMiddleware, friendListLimiter, authController.listFriendOverview);
 router.post("/friends/request", authorizedMiddleware, friendActionLimiter, authController.sendFriendRequest);
 router.post("/friends/request/:requestId/accept", authorizedMiddleware, friendActionLimiter, authController.acceptFriendRequest);

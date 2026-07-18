@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import z from "zod";
-import { CreatePostReportDto, ListPostsQueryDto } from "../dtos/post.dtos";
+import {
+  CreatePostReportDto,
+  ListPostsQueryDto,
+  PostIdParamsDto,
+} from "../dtos/post.dtos";
 import { getClientIp } from "../middleware/rate-limit.middleware";
 import { PostService } from "../services/post.service";
 import { logPostAuditEvent } from "../utils/post-audit.util";
@@ -26,9 +30,17 @@ export class PostReportController {
         });
       }
 
+      const parsedParams = PostIdParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const report = await postService.reportPost(
         reporterId,
-        req.params.postId,
+        parsedParams.data.postId,
         parsedData.data
       );
 

@@ -4,6 +4,9 @@ import z from "zod";
 import {
   CreatePostDto,
   ListPostsQueryDto,
+  PostAuthorParamsDto,
+  PostIdParamsDto,
+  PostMediaParamsDto,
   UpdatePostDto,
 } from "../dtos/post.dtos";
 import { PostService } from "../services/post.service";
@@ -127,9 +130,17 @@ export class PostController {
         });
       }
 
+      const parsedParams = PostAuthorParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const { posts, total } = await postService.getAccessiblePostsByAuthor(
         requesterId,
-        req.params.userId,
+        parsedParams.data.userId,
         parsedQuery.data.page,
         parsedQuery.data.size
       );
@@ -163,9 +174,17 @@ export class PostController {
         });
       }
 
+      const parsedParams = PostIdParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const post = await postService.getAccessiblePostById(
         requesterId,
-        req.params.postId
+        parsedParams.data.postId
       );
 
       return res.status(200).json({
@@ -199,9 +218,17 @@ export class PostController {
         });
       }
 
+      const parsedParams = PostIdParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const { post, contentHash } = await postService.updatePersonalPost(
         requesterId,
-        req.params.postId,
+        parsedParams.data.postId,
         parsedData.data
       );
 
@@ -239,9 +266,17 @@ export class PostController {
         });
       }
 
+      const parsedParams = PostIdParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const { post, contentHash } = await postService.deletePersonalPost(
         requesterId,
-        req.params.postId
+        parsedParams.data.postId
       );
 
       logPostAuditEvent({
@@ -310,10 +345,18 @@ export class PostController {
         });
       }
 
+      const parsedParams = PostMediaParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
       const mediaAsset = await postService.getPostMedia(
         requesterId,
-        req.params.kind,
-        req.params.filename
+        parsedParams.data.kind,
+        parsedParams.data.filename
       );
 
       res.setHeader("Content-Type", mediaAsset.mimeType);

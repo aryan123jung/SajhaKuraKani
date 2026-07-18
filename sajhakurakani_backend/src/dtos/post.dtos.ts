@@ -28,6 +28,24 @@ export const ListPostsQueryDto = z.object({
   size: z.coerce.number().int().min(1).max(50).default(10),
 });
 
+export const PostIdParamsDto = z.object({
+  postId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid post identifier"),
+});
+
+export const PostAuthorParamsDto = z.object({
+  userId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid user identifier"),
+});
+
+export const PostMediaParamsDto = z.object({
+  kind: z.enum(["images", "videos"]),
+  filename: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .regex(/^[a-zA-Z0-9._-]+$/, "Invalid media filename"),
+});
+
 export const UpdatePostDto = z
   .object({
     title: z.preprocess(
@@ -73,3 +91,6 @@ export const CreatePostReportDto = z.object({
 export type CreatePostInput = z.infer<typeof CreatePostDto>;
 export type ListPostsQueryInput = z.infer<typeof ListPostsQueryDto>;
 export type UpdatePostInput = z.infer<typeof UpdatePostDto>;
+export type PostIdParamsInput = z.infer<typeof PostIdParamsDto>;
+export type PostAuthorParamsInput = z.infer<typeof PostAuthorParamsDto>;
+export type PostMediaParamsInput = z.infer<typeof PostMediaParamsDto>;

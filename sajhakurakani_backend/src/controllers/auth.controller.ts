@@ -12,6 +12,7 @@ import {
     RequestEmailVerificationDto,
     RequestPasswordResetDto,
     ResetPasswordDto,
+    SearchUsersQueryDto,
     SendFriendRequestDto,
     VerifyGoogleOAuthTotpDto,
     VerifyLoginTotpDto,
@@ -19,7 +20,6 @@ import {
     UpdateUserDto
 } from "../dtos/user.dtos";
 import { getClientIp } from "../middleware/rate-limit.middleware";
-import { QueryParams } from "../types/query.type";
 
 let userService = new UserService();
 export class AuthController {
@@ -208,12 +208,19 @@ export class AuthController {
                 );
             }
 
-            const { page, size, search }: QueryParams = req.query;
+            const parsedQuery = SearchUsersQueryDto.safeParse(req.query);
+            if (!parsedQuery.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedQuery.error),
+                });
+            }
+
             const { users, pagination } = await userService.searchUsersForUser(
                 currentUserId,
-                page,
-                size,
-                search
+                String(parsedQuery.data.page),
+                String(parsedQuery.data.size),
+                parsedQuery.data.search
             );
 
             return res.status(200).json(

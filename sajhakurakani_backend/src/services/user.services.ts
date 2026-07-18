@@ -186,6 +186,27 @@ export class UserService {
     );
   }
 
+  private async getPendingFriendRequestForActor(
+    requestId: string,
+    actorUserId: string,
+    actorRole: "sender" | "recipient"
+  ) {
+    const ownershipField = actorRole === "sender" ? "sender" : "recipient";
+
+    const request = await FriendRequestModel.findOne({
+      _id: requestId,
+      status: "pending",
+      // access control
+      [ownershipField]: actorUserId,
+    });
+
+    if (!request) {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    return request;
+  }
+
   private createAccessTokenForUser(user: IUser, sessionId: string) {
     if (!JWT_PRIVATE_KEY) {
       throw new HttpError(500, "JWT private key is not configured on the server");
@@ -1086,14 +1107,11 @@ export class UserService {
   }
 
   async acceptFriendRequest(userId: string, requestId: string) {
-    const request = await FriendRequestModel.findById(requestId);
-    if (!request || request.status !== "pending") {
-      throw new HttpError(404, "Friend request not found");
-    }
-
-    if (request.recipient.toString() !== userId) {
-      throw new HttpError(403, "You cannot manage this friend request");
-    }
+    const request = await this.getPendingFriendRequestForActor(
+      requestId,
+      userId,
+      "recipient"
+    );
 
     const session = await mongoose.startSession();
 
@@ -1128,14 +1146,11 @@ export class UserService {
   }
 
   async rejectFriendRequest(userId: string, requestId: string) {
-    const request = await FriendRequestModel.findById(requestId);
-    if (!request || request.status !== "pending") {
-      throw new HttpError(404, "Friend request not found");
-    }
-
-    if (request.recipient.toString() !== userId) {
-      throw new HttpError(403, "You cannot manage this friend request");
-    }
+    const request = await this.getPendingFriendRequestForActor(
+      requestId,
+      userId,
+      "recipient"
+    );
 
     request.status = "rejected";
     request.respondedAt = new Date();
@@ -1149,14 +1164,11 @@ export class UserService {
   }
 
   async cancelFriendRequest(userId: string, requestId: string) {
-    const request = await FriendRequestModel.findById(requestId);
-    if (!request || request.status !== "pending") {
-      throw new HttpError(404, "Friend request not found");
-    }
-
-    if (request.sender.toString() !== userId) {
-      throw new HttpError(403, "You cannot cancel this friend request");
-    }
+    const request = await this.getPendingFriendRequestForActor(
+      requestId,
+      userId,
+      "sender"
+    );
 
     request.status = "cancelled";
     request.respondedAt = new Date();

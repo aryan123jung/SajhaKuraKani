@@ -88,6 +88,34 @@ export const FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
     60
 );
+export const POST_WRITE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.POST_WRITE_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const POST_WRITE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_WRITE_RATE_LIMIT_MAX_REQUESTS,
+    10
+);
+export const POST_UPDATE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_UPDATE_RATE_LIMIT_MAX_REQUESTS,
+    20
+);
+export const POST_DELETE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_DELETE_RATE_LIMIT_MAX_REQUESTS,
+    10
+);
+export const POST_READ_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.POST_READ_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const POST_READ_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_READ_RATE_LIMIT_MAX_REQUESTS,
+    120
+);
+export const POST_MEDIA_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_MEDIA_RATE_LIMIT_MAX_REQUESTS,
+    60
+);
 export const POST_MEDIA_MAX_FILE_SIZE_BYTES: number = parseNumber(
     process.env.POST_MEDIA_MAX_FILE_SIZE_BYTES,
     5 * 1024 * 1024

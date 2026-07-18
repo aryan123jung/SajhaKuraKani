@@ -7,11 +7,13 @@ import { connectDB } from "./database/mogodb";
 import { securityStateStore } from "./security/security-state.store";
 import fs from "fs";
 import { UserService } from "./services/user.services";
+import { assertBackendSecurityConfiguration } from "./utils/security-config.util";
 
 const userService = new UserService();
 
 //server part
 async function startServer(){
+    assertBackendSecurityConfiguration();
     await connectDB();
     await securityStateStore.warmConnection();
     const emailVerificationBackfill = await userService.backfillEmailVerificationState();
