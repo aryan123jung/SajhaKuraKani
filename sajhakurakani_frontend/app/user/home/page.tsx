@@ -1,0 +1,278 @@
+import Link from "next/link";
+import { getCurrentUser } from "@/lib/api/auth";
+
+const contacts = [
+  {
+    name: "Riya Sharma",
+    state: "Active now",
+    preview: "Can we review the new home layout later?",
+  },
+  {
+    name: "Sudeep Rai",
+    state: "Replied 5m ago",
+    preview: "Your verification flow looks much cleaner now.",
+  },
+  {
+    name: "Anisha Karki",
+    state: "Ready to connect",
+    preview: "Let me know when the feed is ready for testing.",
+  },
+] as const;
+
+const quickActions = [
+  {
+    label: "Create post",
+    href: "/user/home",
+  },
+] as const;
+
+const feedCards = [
+  {
+    eyebrow: "Pinned welcome",
+    title: "Start with a clean, calmer home feed.",
+    body: "This first version keeps the familiar social structure: side rails for context, a centered feed, and quick actions that stay easy to reach.",
+    meta: "Just now",
+  },
+  {
+    eyebrow: "Community update",
+    title: "Your trusted spaces can live here next.",
+    body: "Chautari rooms, friends activity, and private message prompts can all be slotted into this center column without changing the shell again.",
+    meta: "Design preview",
+  },
+] as const;
+
+export default async function UserHomePage() {
+  let user = null;
+
+  try {
+    const response = await getCurrentUser();
+    user = response.data;
+  } catch {
+    user = null;
+  }
+
+  const firstName = user?.firstName ?? "there";
+  const fullName = user ? `${user.firstName} ${user.lastName}` : "Secure user";
+  const username = user?.username ? `@${user.username}` : "@sajhakurakani";
+  const email = user?.email ?? "Protected email";
+  const initials = user
+    ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase()
+    : "SK";
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)_280px]">
+      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        <section className="rounded-[18px] border border-[#edd8cb] bg-white/84 p-4 shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#38a89d]">
+                Messages
+              </p>
+              <h2 className="mt-1.5 text-[1.6rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+                Keep in touch
+              </h2>
+            </div>
+            <Link
+              href="/user/message"
+              className="rounded-full border border-[#edd8cb] bg-[#fff8f3] px-3 py-1 text-[0.85rem] font-semibold text-[#526077] transition hover:bg-white"
+            >
+              Open
+            </Link>
+          </div>
+
+          <div className="mt-4 space-y-2.5">
+            {contacts.map((contact) => (
+              <Link
+                key={contact.name}
+                href="/user/message"
+                className="block rounded-[14px] border border-[#e9ecef] bg-[#fbfcfd] px-3 py-3 transition hover:bg-white"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                    {contact.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[0.92rem] font-semibold text-[#1d243f]">
+                      {contact.name}
+                    </p>
+                    <p className="truncate text-[0.72rem] text-[#7b7580]">
+                      {contact.state}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2.5 line-clamp-2 text-[0.76rem] leading-5 text-[#6b7080]">
+                  {contact.preview}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </aside>
+
+      <section className="space-y-4">
+        <div className="rounded-[18px] border border-[#edd8cb] bg-white/84 p-4 shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2 rounded-full border border-[#edd8cb] bg-[#fff8f3] p-1">
+              <button
+                type="button"
+                className="rounded-full bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-3.5 py-1.5 text-[0.88rem] font-semibold text-white shadow-[0_6px_16px_rgba(241,111,56,0.16)]"
+              >
+                Feed
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="rounded-full border border-[#edd8cb] bg-[#fff8f3] px-3.5 py-1.5 text-[0.88rem] font-semibold text-[#526077] transition hover:bg-white"
+                >
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[16px] border border-[#f0ddd1] bg-[linear-gradient(135deg,rgba(255,247,240,0.96),rgba(255,252,248,0.92))] p-4">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[#ef744b]">
+              Feed overview
+            </p>
+            <h1 className="mt-2.5 max-w-2xl text-[1.9rem] font-semibold tracking-[-0.05em] text-[#1d243f] sm:text-[2.25rem] xl:text-[2.4rem] xl:leading-[0.98]">
+              {firstName}, your home feed is cleaner and easier to scan.
+            </h1>
+            <p className="mt-3 max-w-2xl text-[0.9rem] leading-6 text-[#6b7080]">
+              Messages sit on the left, posts stay centered, and profile tools remain on the right for a more balanced reading flow.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {feedCards.map((card) => (
+            <article
+              key={card.title}
+              className="rounded-[18px] border border-[#edd8cb] bg-white/86 p-4 shadow-[0_12px_28px_rgba(128,84,53,0.05)]"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] text-xs font-semibold text-white">
+                  {initials}
+                </span>
+                <div>
+                  <p className="text-[0.92rem] font-semibold text-[#1d243f]">{fullName}</p>
+                  <p className="text-[0.74rem] text-[#7b7580]">{card.meta}</p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[#ef744b]">
+                {card.eyebrow}
+              </p>
+              <h2 className="mt-2.5 text-[1.65rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+                {card.title}
+              </h2>
+              <p className="mt-2.5 text-[0.92rem] leading-6 text-[#667086]">
+                {card.body}
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {["Trusted", "Warm", "Feed layout"].map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-[#edd8cb] bg-[#fff8f3] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#7b7580]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        <section className="rounded-[18px] border border-[#edd8cb] bg-white/84 p-4 shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#38a89d]">
+            Your corner
+          </p>
+          <div className="mt-3.5 flex items-center gap-3">
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-sm font-semibold text-white">
+              {initials}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[1.05rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+                {fullName}
+              </p>
+              <p className="truncate text-[0.84rem] text-[#7b7580]">{username}</p>
+              <p className="mt-0.5 truncate text-[0.74rem] text-[#7b7580]">{email}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-2.5">
+            <Link
+              href="/user/profile"
+              className="flex-1 rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-3.5 py-2 text-center text-[0.88rem] font-semibold text-white shadow-[0_8px_18px_rgba(241,111,56,0.16)]"
+            >
+              View profile
+            </Link>
+            <Link
+              href="/settings"
+              className="rounded-[12px] border border-[#edd8cb] bg-[#fff8f3] px-3.5 py-2 text-[0.88rem] font-semibold text-[#526077] transition hover:bg-white"
+            >
+              Settings
+            </Link>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[18px] border border-[#e5d8d2] bg-white/84 shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
+          <div className="bg-[linear-gradient(135deg,#e78763_0%,#4ab1a0_100%)] px-4 py-4 text-white">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-white/78">
+                  Assistant
+                </p>
+                <h2 className="mt-1.5 text-[1.75rem] font-semibold tracking-[-0.04em]">
+                  AI Chat Bot
+                </h2>
+              </div>
+              <span className="text-lg">✦</span>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4">
+            <div className="rounded-[14px] border border-[#f0ddd1] bg-[#fff4ec] px-3.5 py-3.5 text-[0.9rem] leading-6 text-[#5f6678]">
+              Hi {firstName}! How can I help you today?
+            </div>
+
+            <div className="rounded-[14px] border border-[#e9ecef] bg-[#fbfcfd] px-3.5 py-3.5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#a0a4ae]">
+                Suggested
+              </p>
+              <ul className="mt-2.5 space-y-1.5 text-[0.88rem] text-[#5f6678]">
+                <li>Find new friends with shared interests.</li>
+                <li>Review your security settings.</li>
+                <li>Open your Chautari communities.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-[14px] border border-[#e9ecef] bg-white px-3 py-2.5">
+              <input
+                type="text"
+                placeholder="Ask me anything..."
+                className="w-full bg-transparent text-[0.88rem] text-[#1d243f] outline-none placeholder:text-[#adb1bb]"
+              />
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#1d243f] text-sm text-white"
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  );
+}
