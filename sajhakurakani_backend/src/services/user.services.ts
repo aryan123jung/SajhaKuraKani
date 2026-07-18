@@ -14,6 +14,9 @@ import {
   AUTH_MAX_FAILED_ATTEMPTS,
   CLIENT_URL,
   EMAIL_VERIFICATION_TOKEN_EXPIRY_MS,
+  FRIEND_NEW_ACCOUNT_WINDOW_DAYS,
+  FRIEND_OUTGOING_REQUEST_DAILY_LIMIT,
+  FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_DAILY_LIMIT,
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
@@ -39,6 +42,7 @@ import { AuthSessionRepository } from "../repositories/auth-session.repository";
 import { EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository";
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
 import { LoginDefenseSecurity } from "../security/login-defense.security";
+import { securityStateStore } from "../security/security-state.store";
 import { decryptText, encryptText } from "../utils/crypto.util";
 import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
@@ -63,6 +67,7 @@ const FRIEND_REQUEST_ALREADY_SENT_MESSAGE = "A friend request has already been s
 const FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE =
   "This user already sent you a friend request.";
 const ALREADY_FRIENDS_MESSAGE = "You are already connected as friends.";
+const FRIEND_OUTGOING_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -205,6 +210,43 @@ export class UserService {
     }
 
     return request;
+  }
+
+  private getFriendOutgoingDailyLimit(user: IUser) {
+    const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
+    const isNewAccount =
+      accountAgeMs < FRIEND_NEW_ACCOUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+    // rate limiting
+    if (isNewAccount || !user.emailVerified) {
+      return FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_DAILY_LIMIT;
+    }
+
+    return FRIEND_OUTGOING_REQUEST_DAILY_LIMIT;
+  }
+
+  private async assertCanSendOutgoingFriendRequest(user: IUser, requestIp?: string) {
+    const dailyLimit = this.getFriendOutgoingDailyLimit(user);
+    const rateLimitKey = `friend-outgoing-daily:${user._id.toString()}:${requestIp || "unknown"}`;
+    const { count, retryAfterMs } =
+      await securityStateStore.incrementRateLimitCounter(
+        rateLimitKey,
+        FRIEND_OUTGOING_REQUEST_WINDOW_MS
+      );
+
+    if (count > dailyLimit) {
+      this.logSecurityEvent("friend_request_daily_rate_limit_exceeded", {
+        userId: user._id.toString(),
+        ipAddress: requestIp,
+        count,
+        retryAfterMs,
+        dailyLimit,
+      });
+      throw new HttpError(
+        429,
+        "Too many outgoing friend requests were sent from this account. Please try again tomorrow."
+      );
+    }
   }
 
   private createAccessTokenForUser(user: IUser, sessionId: string) {
@@ -1048,7 +1090,11 @@ export class UserService {
     };
   }
 
-  async sendFriendRequest(userId: string, payload: SendFriendRequestDto) {
+  async sendFriendRequest(
+    userId: string,
+    payload: SendFriendRequestDto,
+    requestIp?: string
+  ) {
     if (userId === payload.recipientUserId) {
       throw new HttpError(400, "You cannot send a friend request to yourself");
     }
@@ -1061,6 +1107,8 @@ export class UserService {
     if (!sender || !recipient || recipient.role !== "user" || !recipient.emailVerified) {
       throw new HttpError(404, "User not found");
     }
+
+    await this.assertCanSendOutgoingFriendRequest(sender, requestIp);
 
     const senderFriendIds = (sender.friends || []).map((friendId) => friendId.toString());
     if (senderFriendIds.includes(recipient._id.toString())) {

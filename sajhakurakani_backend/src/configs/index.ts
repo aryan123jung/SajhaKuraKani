@@ -88,6 +88,18 @@ export const FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
     60
 );
+export const FRIEND_OUTGOING_REQUEST_DAILY_LIMIT: number = parseNumber(
+    process.env.FRIEND_OUTGOING_REQUEST_DAILY_LIMIT,
+    50
+);
+export const FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_DAILY_LIMIT: number = parseNumber(
+    process.env.FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_DAILY_LIMIT,
+    15
+);
+export const FRIEND_NEW_ACCOUNT_WINDOW_DAYS: number = parseNumber(
+    process.env.FRIEND_NEW_ACCOUNT_WINDOW_DAYS,
+    7
+);
 export const POST_WRITE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
     process.env.POST_WRITE_RATE_LIMIT_WINDOW_MS,
     15 * 60 * 1000

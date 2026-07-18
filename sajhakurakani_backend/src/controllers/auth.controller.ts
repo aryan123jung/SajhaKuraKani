@@ -683,7 +683,7 @@ export class AuthController {
                 });
             }
 
-            await userService.sendFriendRequest(userId, parsedBody.data);
+            await userService.sendFriendRequest(userId, parsedBody.data, getClientIp(req));
             return res.status(201).json({
                 success: true,
                 message: "Friend request sent successfully",
