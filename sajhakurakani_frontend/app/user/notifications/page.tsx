@@ -9,7 +9,7 @@ export default function UserNotificationsPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-7 text-[#6b7080] sm:text-base">
         This page is ready for mentions, friend requests, security alerts, and
-        community updates once we start wiring the real data.
+        account activity once we start wiring the real data.
       </p>
     </div>
   );

@@ -43,7 +43,7 @@
 //                   designed with identity in mind.
 //                 </h1>
 //                 <p className="auth-brand-description">
-//                   A lighter, calmer entry point for a community platform that
+//                   A lighter, calmer entry point for a private social platform that
 //                   treats identity, privacy, and trust as part of the product.
 //                 </p>
 //               </div>
@@ -127,7 +127,7 @@ export default function AuthShell({
                 </h1>
 
                 <p className="auth-brand-description">
-                  A lighter, calmer entry point for a community platform that
+                  A lighter, calmer entry point for a private social platform that
                   treats identity, privacy, and trust as part of the product.
                 </p>
               </div>

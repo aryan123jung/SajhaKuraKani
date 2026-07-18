@@ -34,9 +34,9 @@ const feedCards = [
     meta: "Just now",
   },
   {
-    eyebrow: "Community update",
-    title: "Your trusted spaces can live here next.",
-    body: "Chautari rooms, friends activity, and private message prompts can all be slotted into this center column without changing the shell again.",
+    eyebrow: "Design update",
+    title: "Your trusted spaces stay focused and personal.",
+    body: "Friends activity, private message prompts, and profile updates can all live in this center column without changing the shell again.",
     meta: "Design preview",
   },
 ] as const;
@@ -253,7 +253,7 @@ export default async function UserHomePage() {
               <ul className="mt-2.5 space-y-1.5 text-[0.88rem] text-[#5f6678]">
                 <li>Find new friends with shared interests.</li>
                 <li>Review your security settings.</li>
-                <li>Open your Chautari communities.</li>
+                <li>Check your latest messages.</li>
               </ul>
             </div>
 

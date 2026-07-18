@@ -7,6 +7,7 @@ const profileTabs = ["Posts", "About", "Friends", "Photos"] as const;
 type ProfileHeroCardProps = {
   user: ProfileViewUser;
   fullName: string;
+  username: string;
   initials: string;
   joinedLabel: string;
 };
@@ -14,6 +15,7 @@ type ProfileHeroCardProps = {
 export default function ProfileHeroCard({
   user,
   fullName,
+  username,
   initials,
   joinedLabel,
 }: ProfileHeroCardProps) {
@@ -52,12 +54,10 @@ export default function ProfileHeroCard({
             </div>
 
             <div className="pb-1">
-              <p className="text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-[#8a8290]">
-                User
-              </p>
-              <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em] text-[#1d243f] sm:text-[2.35rem]">
+              <h1 className="text-[2rem] font-semibold tracking-[-0.05em] text-[#1d243f] sm:text-[2.35rem]">
                 {fullName}
               </h1>
+              <p className="mt-1 text-[0.95rem] text-[#6d7484]">{username}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.82rem] text-[#7b7580]">
                 <span className="rounded-full bg-[#f7f3ef] px-3 py-1">
                   Joined {joinedLabel}
