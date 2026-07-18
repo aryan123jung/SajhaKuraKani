@@ -1,7 +1,9 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from "path";
 import authRoutes from './routes/auth.routes';
+import postRoutes from './routes/post.routes';
 import { HttpError } from './errors/http-error';
 import {
     CORS_ORIGINS,
@@ -50,6 +52,14 @@ app.use((req: Request, res: Response, next: Function) => {
 });
 app.use(express.json({ limit: '20kb' }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
+app.use(
+    "/uploads",
+    express.static(path.resolve(process.cwd(), "uploads"), {
+        fallthrough: true,
+        index: false,
+        redirect: false,
+    })
+);
 app.use(sanitizeRequestMiddleware);
 app.use(
     createRateLimitMiddleware({
@@ -71,6 +81,7 @@ app.use((req: Request, res: Response, next: Function) => {
     next();
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/posts', postRoutes);
 
 
 app.use((err: Error, req: Request, res: Response, next: Function) => {
