@@ -59,71 +59,80 @@ export class PostService {
       throw new HttpError(404, "Author was not found");
     }
 
-    const title = sanitizePostText(payload.title);
-    const content = sanitizePostText(payload.content);
-    const media = mapPostMedia(files);
-    const contentHash = createPostContentHash({
-      title,
-      content,
-      visibility: payload.visibility,
-      files,
-    });
-    const duplicateFingerprint = createPostDuplicateFingerprint({
-      title,
-      content,
-      files,
-    });
+    let postCreated = false;
 
-    if (!title && !content && media.length === 0) {
-      cleanupUploadedFiles(files);
-      throw new HttpError(400, "A post must include text or at least one media file");
-    }
+    try {
+      const title = sanitizePostText(payload.title);
+      const content = sanitizePostText(payload.content);
+      const media = mapPostMedia(files);
+      const contentHash = createPostContentHash({
+        title,
+        content,
+        visibility: payload.visibility,
+        files,
+      });
+      const duplicateFingerprint = createPostDuplicateFingerprint({
+        title,
+        content,
+        files,
+      });
 
-    if (media.length > 4) {
-      cleanupUploadedFiles(files);
-      throw new HttpError(400, "A post can include up to 4 media files");
-    }
+      if (!title && !content && media.length === 0) {
+        throw new HttpError(400, "A post must include text or at least one media file");
+      }
 
-    // sensitive content protection
-    assertPostContentDoesNotContainSensitiveData(title, content);
-    // malicious link detection
-    assertPostLinksAreSafe(title, content);
-    // content moderation pipeline
-    moderatePostContent(title, content);
-    // duplicate post detection
-    const recentDuplicate = await postRepository.findRecentDuplicateByAuthor(
-      authorId,
-      duplicateFingerprint
-    );
-    if (recentDuplicate) {
-      cleanupUploadedFiles(files);
-      throw new HttpError(
-        409,
-        "A very similar post was already shared recently. Please avoid duplicate posting."
+      if (media.length > 4) {
+        throw new HttpError(400, "A post can include up to 4 media files");
+      }
+
+      // sensitive content protection
+      assertPostContentDoesNotContainSensitiveData(title, content);
+      // malicious link detection
+      assertPostLinksAreSafe(title, content);
+      // content moderation pipeline
+      moderatePostContent(title, content);
+      // duplicate post detection
+      const recentDuplicate = await postRepository.findRecentDuplicateByAuthor(
+        authorId,
+        duplicateFingerprint
       );
+      if (recentDuplicate) {
+        throw new HttpError(
+          409,
+          "A very similar post was already shared recently. Please avoid duplicate posting."
+        );
+      }
+      // data encryption at rest
+      const encryptedFields = encryptPostFields(title, content);
+
+      const createdPost = await postRepository.createPost({
+        author: author._id,
+        ...encryptedFields,
+        contentHash,
+        duplicateFingerprint,
+        visibility: payload.visibility,
+        commentPrivacy: payload.commentPrivacy,
+        sharePrivacy: payload.sharePrivacy,
+        media,
+      });
+
+      if (!createdPost) {
+        throw new HttpError(500, "Post could not be created");
+      }
+
+      postCreated = true;
+
+      return {
+        post: serializePostForResponse(createdPost),
+        contentHash,
+      };
+    } catch (error) {
+      if (!postCreated) {
+        // rollback cleanup for failed post creation
+        cleanupUploadedFiles(files);
+      }
+      throw error;
     }
-    // data encryption at rest
-    const encryptedFields = encryptPostFields(title, content);
-
-    const createdPost = await postRepository.createPost({
-      author: author._id,
-      ...encryptedFields,
-      contentHash,
-      duplicateFingerprint,
-      visibility: payload.visibility,
-      commentPrivacy: payload.commentPrivacy,
-      sharePrivacy: payload.sharePrivacy,
-      media,
-    });
-
-    if (!createdPost) {
-      throw new HttpError(500, "Post could not be created");
-    }
-
-    return {
-      post: serializePostForResponse(createdPost),
-      contentHash,
-    };
   }
 
   async getPersonalPosts(authorId: string, page: number, size: number) {

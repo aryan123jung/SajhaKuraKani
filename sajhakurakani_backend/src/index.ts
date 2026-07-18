@@ -1,9 +1,16 @@
 import app from "./app";
-import { HTTPS_CERT_PATH, HTTPS_KEY_PATH, LOCAL_HTTPS, PORT } from "./configs";
+import {
+    AUDIT_LOG_RETENTION_DAYS,
+    HTTPS_CERT_PATH,
+    HTTPS_KEY_PATH,
+    LOCAL_HTTPS,
+    PORT,
+} from "./configs";
 import http from "http";
 import https from "https";
 import { initSocket } from "./realtime/socket";
 import { connectDB } from "./database/mogodb";
+import { startAuditRetentionJob } from "./jobs/audit-retention.job";
 import { securityStateStore } from "./security/security-state.store";
 import fs from "fs";
 import { UserService } from "./services/user.services";
@@ -16,6 +23,7 @@ async function startServer(){
     assertBackendSecurityConfiguration();
     await connectDB();
     await securityStateStore.warmConnection();
+    startAuditRetentionJob();
     const emailVerificationBackfill = await userService.backfillEmailVerificationState();
     const securityStateStatus = securityStateStore.getConnectionStatus();
     // https implementation
@@ -53,6 +61,9 @@ async function startServer(){
             if (LOCAL_HTTPS && !useLocalHttps) {
                 console.warn("HTTPS: LOCAL_HTTPS is enabled but certificate files were not found. Falling back to HTTP.");
             }
+            console.log(
+                `Audit retention: ${AUDIT_LOG_RETENTION_DAYS}-day cleanup policy is active for persistent audit logs and resolved reports`
+            );
             console.log(`Server: ${useLocalHttps ? "https" : "http"}://localhost:${PORT}`);
         }
     )

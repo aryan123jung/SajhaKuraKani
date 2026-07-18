@@ -86,6 +86,17 @@ const friendActionLimiter = createRateLimitMiddleware({
     },
 });
 
+const friendRequestSendLimiter = createRateLimitMiddleware({
+    keyPrefix: "friend-request-send",
+    windowMs: FRIEND_RATE_LIMIT_WINDOW_MS,
+    maxRequests: FRIEND_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    message: "Too many friend requests were sent. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return req.user?._id?.toString() || "anonymous";
+    },
+});
+
 const userSearchLimiter = createRateLimitMiddleware({
     keyPrefix: "user-search",
     windowMs: FRIEND_RATE_LIMIT_WINDOW_MS,
@@ -122,7 +133,7 @@ router.post("/sessions/revoke-others", authorizedMiddleware, authController.revo
 router.delete("/sessions/:sessionId", authorizedMiddleware, authController.revokeSession);
 router.get("/users", authorizedMiddleware, userSearchLimiter, authController.searchUsers);
 router.get("/friends", authorizedMiddleware, friendListLimiter, authController.listFriendOverview);
-router.post("/friends/request", authorizedMiddleware, friendActionLimiter, authController.sendFriendRequest);
+router.post("/friends/request", authorizedMiddleware, friendRequestSendLimiter, authController.sendFriendRequest);
 router.post("/friends/request/:requestId/report", authorizedMiddleware, friendActionLimiter, authController.reportFriendRequest);
 router.post("/friends/request/:requestId/accept", authorizedMiddleware, friendActionLimiter, authController.acceptFriendRequest);
 router.post("/friends/request/:requestId/reject", authorizedMiddleware, friendActionLimiter, authController.rejectFriendRequest);

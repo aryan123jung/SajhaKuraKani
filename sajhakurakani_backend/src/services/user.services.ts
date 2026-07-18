@@ -226,12 +226,19 @@ export class UserService {
 
     const request = await FriendRequestModel.findOne({
       _id: requestId,
-      status: "pending",
       // access control
       [ownershipField]: actorUserId,
     });
 
     if (!request) {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    if (request.status === "expired") {
+      throw new HttpError(410, "This friend request expired after 30 days.");
+    }
+
+    if (request.status !== "pending") {
       throw new HttpError(404, "Friend request not found");
     }
 
@@ -307,7 +314,7 @@ export class UserService {
 
   private async assertCanSendOutgoingFriendRequest(user: IUser, requestIp?: string) {
     const hourlyLimit = this.getFriendOutgoingHourlyLimit(user);
-    const hourlyRateLimitKey = `friend-outgoing-hourly:${user._id.toString()}:${requestIp || "unknown"}`;
+    const hourlyRateLimitKey = `friend-outgoing-hourly:${user._id.toString()}`;
     const hourlyRateLimitState = await securityStateStore.incrementRateLimitCounter(
       hourlyRateLimitKey,
       FRIEND_OUTGOING_REQUEST_HOURLY_WINDOW_MS
@@ -329,7 +336,7 @@ export class UserService {
     }
 
     const dailyLimit = this.getFriendOutgoingDailyLimit(user);
-    const rateLimitKey = `friend-outgoing-daily:${user._id.toString()}:${requestIp || "unknown"}`;
+    const rateLimitKey = `friend-outgoing-daily:${user._id.toString()}`;
     const { count, retryAfterMs } =
       await securityStateStore.incrementRateLimitCounter(
         rateLimitKey,

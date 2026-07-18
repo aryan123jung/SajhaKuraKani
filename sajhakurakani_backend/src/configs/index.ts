@@ -217,3 +217,11 @@ export const POST_REPORT_AUTO_RESOLVE_DAYS: number = parseNumber(
     process.env.POST_REPORT_AUTO_RESOLVE_DAYS,
     14
 );
+export const AUDIT_LOG_RETENTION_DAYS: number = parseNumber(
+    process.env.AUDIT_LOG_RETENTION_DAYS,
+    90
+);
+export const AUDIT_LOG_CLEANUP_INTERVAL_HOURS: number = parseNumber(
+    process.env.AUDIT_LOG_CLEANUP_INTERVAL_HOURS,
+    24
+);
