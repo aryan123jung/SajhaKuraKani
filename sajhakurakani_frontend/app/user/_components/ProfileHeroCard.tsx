@@ -1,0 +1,99 @@
+/* eslint-disable @next/next/no-img-element */
+
+import { ProfileViewUser } from "./profileTypes";
+
+const profileTabs = ["Posts", "About", "Friends", "Photos"] as const;
+
+type ProfileHeroCardProps = {
+  user: ProfileViewUser;
+  fullName: string;
+  initials: string;
+  joinedLabel: string;
+};
+
+export default function ProfileHeroCard({
+  user,
+  fullName,
+  initials,
+  joinedLabel,
+}: ProfileHeroCardProps) {
+  return (
+    <section className="overflow-hidden rounded-[22px] border border-[#e6d8d0] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.08)]">
+      <div
+        className="relative h-[220px] w-full bg-[linear-gradient(135deg,#ff8d63_0%,#f5b18d_28%,#f7d9c9_58%,#f5f8ff_100%)]"
+        style={
+          user?.coverUrl
+            ? {
+                backgroundImage: `linear-gradient(rgba(23,33,58,0.12), rgba(23,33,58,0.12)), url(${user.coverUrl})`,
+                backgroundPosition: "center",
+                backgroundSize: "cover",
+              }
+            : undefined
+        }
+      >
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,0.18)_50%,rgba(255,255,255,0.92)_100%)]" />
+      </div>
+
+      <div className="relative px-5 pb-5 sm:px-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="-mt-16 flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#1d243f] shadow-[0_16px_36px_rgba(29,36,63,0.18)]">
+              {user?.profileUrl ? (
+                <img
+                  src={user.profileUrl}
+                  alt={fullName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-3xl font-semibold text-white">
+                  {initials}
+                </span>
+              )}
+            </div>
+
+            <div className="pb-1">
+              <p className="text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-[#8a8290]">
+                User
+              </p>
+              <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em] text-[#1d243f] sm:text-[2.35rem]">
+                {fullName}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.82rem] text-[#7b7580]">
+                <span className="rounded-full bg-[#f7f3ef] px-3 py-1">
+                  Joined {joinedLabel}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-4 py-2.5 text-[0.9rem] font-semibold text-white shadow-[0_10px_22px_rgba(241,111,56,0.18)]"
+            >
+              Edit profile
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 border-t border-[#eee3dc] pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {profileTabs.map((tab, index) => (
+              <button
+                key={tab}
+                type="button"
+                className={`rounded-[10px] px-4 py-2 text-[0.9rem] font-semibold transition ${
+                  index === 0
+                    ? "bg-[#fff1e8] text-[#ef744b]"
+                    : "text-[#6c7383] hover:bg-[#f7f3ef]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
