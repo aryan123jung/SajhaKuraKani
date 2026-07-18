@@ -7,9 +7,11 @@ import postRoutes from './routes/post.routes';
 import { HttpError } from './errors/http-error';
 import {
     CORS_ORIGINS,
+    CSRF_HEADER_NAME,
     GLOBAL_RATE_LIMIT_MAX_REQUESTS,
     GLOBAL_RATE_LIMIT_WINDOW_MS
 } from './configs';
+import { csrfProtectionMiddleware } from './middleware/csrf-protection.middleware';
 import { createRateLimitMiddleware } from './middleware/rate-limit.middleware';
 import { sanitizeRequestMiddleware } from './middleware/sanitize-request.middleware';
 
@@ -19,7 +21,7 @@ const app: Application = express();
 const corsOptions = {
   origin: CORS_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type'],
+  allowedHeaders: ['Authorization', 'Content-Type', CSRF_HEADER_NAME],
 };
 
 app.disable('x-powered-by');
@@ -77,6 +79,7 @@ app.use(
         message: 'Too many requests from this IP. Please try again later.',
     })
 );
+app.use(csrfProtectionMiddleware);
 app.use((req: Request, res: Response, next: Function) => {
     // https implementation
     res.setHeader('X-Content-Type-Options', 'nosniff');

@@ -51,6 +51,10 @@ export const CORS_ORIGINS: string[] = (process.env.CORS_ORIGINS || CLIENT_URL)
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+export const CSRF_COOKIE_NAME: string =
+    process.env.CSRF_COOKIE_NAME || "sajhakurakani_csrf_token";
+export const CSRF_HEADER_NAME: string =
+    process.env.CSRF_HEADER_NAME || "X-CSRF-Token";
 export const AUTH_MAX_FAILED_ATTEMPTS: number = parseNumber(process.env.AUTH_MAX_FAILED_ATTEMPTS, 5);
 export const AUTH_LOCK_WINDOW_MS: number = parseNumber(process.env.AUTH_LOCK_WINDOW_MS, 15 * 60 * 1000);
 export const GLOBAL_RATE_LIMIT_WINDOW_MS: number = parseNumber(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000);
