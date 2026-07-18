@@ -1,6 +1,10 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type PostVisibility = "public" | "private";
+export type PostVisibility =
+  | "public"
+  | "private"
+  | "friends-only"
+  | "community-only";
 export type PostMediaType = "image" | "video";
 
 export interface IPostMedia {
@@ -14,6 +18,8 @@ export interface IPost extends Document {
   author: mongoose.Types.ObjectId;
   title?: string;
   content?: string;
+  titleEncrypted?: string;
+  contentEncrypted?: string;
   visibility: PostVisibility;
   media: IPostMedia[];
   createdAt: Date;
@@ -42,16 +48,30 @@ const postSchema = new Schema<IPost>(
       required: false,
       trim: true,
       maxlength: 140,
+      select: false,
     },
     content: {
       type: String,
       required: false,
       trim: true,
       maxlength: 5000,
+      select: false,
+    },
+    titleEncrypted: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 512,
+    },
+    contentEncrypted: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 8192,
     },
     visibility: {
       type: String,
-      enum: ["public", "private"],
+      enum: ["public", "private", "friends-only", "community-only"],
       default: "public",
       index: true,
     },

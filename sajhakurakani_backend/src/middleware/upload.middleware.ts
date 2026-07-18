@@ -4,9 +4,17 @@ import path from "path";
 import fs from "fs";
 import { Request } from "express";
 import { HttpError } from "../errors/http-error";
+import {
+  POST_IMAGE_MAX_FILE_SIZE_BYTES,
+  POST_VIDEO_MAX_FILE_SIZE_BYTES,
+} from "../configs";
 
-const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
+const POST_MEDIA_MAX_UPLOAD_BYTES = Math.max(
+  POST_IMAGE_MAX_FILE_SIZE_BYTES,
+  POST_VIDEO_MAX_FILE_SIZE_BYTES
+);
 
 const isAllowedExtension = (fileName: string, allowedExtensions: Set<string>) => {
   return allowedExtensions.has(path.extname(fileName).toLowerCase());
@@ -84,7 +92,7 @@ const fileFilter = (
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: POST_MEDIA_MAX_UPLOAD_BYTES },
 });
 
 export const uploads = {

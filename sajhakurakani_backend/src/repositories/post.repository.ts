@@ -9,10 +9,33 @@ export class PostRepository {
   }
 
   async getPostById(postId: string) {
-    return PostModel.findById(postId).populate(
+    return PostModel.findById(postId)
+      .select("+title +content")
+      .populate(
       "author",
       "firstName lastName username profileUrl"
-    );
+      );
+  }
+
+  async getPostByIdForAccess(postId: string) {
+    return PostModel.findById(postId).select("+title +content");
+  }
+
+  async getPostByMediaUrl(mediaUrl: string) {
+    return PostModel.findOne({ "media.url": mediaUrl }).select("+title +content");
+  }
+
+  async updatePost(postId: string, postData: Partial<IPost>) {
+    await PostModel.findByIdAndUpdate(postId, postData, {
+      returnDocument: "after",
+      runValidators: true,
+    });
+
+    return this.getPostById(postId);
+  }
+
+  async deletePost(postId: string) {
+    return PostModel.findByIdAndDelete(postId);
   }
 
   async listPostsByAuthor(authorId: string, page: number, size: number) {
@@ -20,6 +43,7 @@ export class PostRepository {
 
     const [posts, total] = await Promise.all([
       PostModel.find(filter)
+        .select("+title +content")
         .populate("author", "firstName lastName username profileUrl")
         .sort({ createdAt: -1 })
         .skip((page - 1) * size)

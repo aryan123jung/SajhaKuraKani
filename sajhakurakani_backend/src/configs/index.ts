@@ -74,3 +74,40 @@ export const TOTP_ISSUER: string = process.env.TOTP_ISSUER || 'SajhaKuraKani';
 export const GOOGLE_CLIENT_ID: string = process.env.GOOGLE_CLIENT_ID || '';
 export const GOOGLE_CLIENT_SECRET: string = process.env.GOOGLE_CLIENT_SECRET || '';
 export const GOOGLE_REDIRECT_URI: string = process.env.GOOGLE_REDIRECT_URI || `${CLIENT_URL}/oauth/google/callback`;
+export const POST_MEDIA_MAX_FILE_SIZE_BYTES: number = parseNumber(
+    process.env.POST_MEDIA_MAX_FILE_SIZE_BYTES,
+    5 * 1024 * 1024
+);
+export const POST_IMAGE_MAX_FILE_SIZE_BYTES: number = parseNumber(
+    process.env.POST_IMAGE_MAX_FILE_SIZE_BYTES,
+    5 * 1024 * 1024
+);
+export const POST_VIDEO_MAX_FILE_SIZE_BYTES: number = parseNumber(
+    process.env.POST_VIDEO_MAX_FILE_SIZE_BYTES,
+    25 * 1024 * 1024
+);
+export const POST_MEDIA_RESCAN_ON_READ: boolean =
+    process.env.POST_MEDIA_RESCAN_ON_READ === "true";
+export const POST_MEDIA_REQUIRE_VIDEO_PROCESSING: boolean =
+    process.env.POST_MEDIA_REQUIRE_VIDEO_PROCESSING !== "false";
+export const POST_ANTIVIRUS_ENABLED: boolean =
+    process.env.POST_ANTIVIRUS_ENABLED === "true";
+export const POST_ANTIVIRUS_FAIL_CLOSED: boolean =
+    process.env.POST_ANTIVIRUS_FAIL_CLOSED === "true";
+export const POST_ANTIVIRUS_PROVIDER: "clamav" | "virustotal" =
+    process.env.POST_ANTIVIRUS_PROVIDER === "virustotal" ? "virustotal" : "clamav";
+export const CLAMAV_HOST: string = process.env.CLAMAV_HOST || "127.0.0.1";
+export const CLAMAV_PORT: number = parseNumber(process.env.CLAMAV_PORT, 3310);
+export const VIRUSTOTAL_API_KEY: string = process.env.VIRUSTOTAL_API_KEY || "";
+export const POST_CONTENT_MODERATION_ENABLED: boolean =
+    process.env.POST_CONTENT_MODERATION_ENABLED === "true";
+export const POST_CONTENT_BLOCKLIST: string[] = (
+    process.env.POST_CONTENT_BLOCKLIST || ""
+)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const POST_DATA_ENCRYPTION_KEY: string =
+    process.env.POST_DATA_ENCRYPTION_KEY || "";
+export const SIPS_PATH: string = process.env.SIPS_PATH || "/usr/bin/sips";
+export const FFMPEG_PATH: string = process.env.FFMPEG_PATH || "ffmpeg";

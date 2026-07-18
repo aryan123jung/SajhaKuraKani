@@ -53,8 +53,24 @@ app.use((req: Request, res: Response, next: Function) => {
 app.use(express.json({ limit: '20kb' }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(
-    "/uploads",
-    express.static(path.resolve(process.cwd(), "uploads"), {
+    "/uploads/profile",
+    express.static(path.resolve(process.cwd(), "uploads/profile"), {
+        fallthrough: true,
+        index: false,
+        redirect: false,
+    })
+);
+app.use(
+    "/uploads/cover",
+    express.static(path.resolve(process.cwd(), "uploads/cover"), {
+        fallthrough: true,
+        index: false,
+        redirect: false,
+    })
+);
+app.use(
+    "/uploads/chautari/profile",
+    express.static(path.resolve(process.cwd(), "uploads/chautari/profile"), {
         fallthrough: true,
         index: false,
         redirect: false,
