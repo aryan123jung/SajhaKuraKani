@@ -123,3 +123,19 @@ export const RemoveFriendParamsDto = z.object({
     friendUserId: objectIdSchema,
 });
 export type RemoveFriendParamsDto = z.infer<typeof RemoveFriendParamsDto>;
+
+export const BlockUserDto = z.object({
+    blockedUserId: objectIdSchema,
+});
+export type BlockUserDto = z.infer<typeof BlockUserDto>;
+
+export const UnblockUserParamsDto = z.object({
+    blockedUserId: objectIdSchema,
+});
+export type UnblockUserParamsDto = z.infer<typeof UnblockUserParamsDto>;
+
+export const CreateFriendRequestReportDto = z.object({
+    reason: z.enum(["harassment", "spam", "impersonation", "unsafe-behavior", "other"]),
+    details: z.string().trim().min(1).max(500).optional(),
+});
+export type CreateFriendRequestReportDto = z.infer<typeof CreateFriendRequestReportDto>;

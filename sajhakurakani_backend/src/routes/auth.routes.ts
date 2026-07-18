@@ -123,9 +123,12 @@ router.delete("/sessions/:sessionId", authorizedMiddleware, authController.revok
 router.get("/users", authorizedMiddleware, userSearchLimiter, authController.searchUsers);
 router.get("/friends", authorizedMiddleware, friendListLimiter, authController.listFriendOverview);
 router.post("/friends/request", authorizedMiddleware, friendActionLimiter, authController.sendFriendRequest);
+router.post("/friends/request/:requestId/report", authorizedMiddleware, friendActionLimiter, authController.reportFriendRequest);
 router.post("/friends/request/:requestId/accept", authorizedMiddleware, friendActionLimiter, authController.acceptFriendRequest);
 router.post("/friends/request/:requestId/reject", authorizedMiddleware, friendActionLimiter, authController.rejectFriendRequest);
 router.post("/friends/request/:requestId/cancel", authorizedMiddleware, friendActionLimiter, authController.cancelFriendRequest);
+router.post("/friends/block", authorizedMiddleware, friendActionLimiter, authController.blockUser);
+router.delete("/friends/block/:blockedUserId", authorizedMiddleware, friendActionLimiter, authController.unblockUser);
 router.delete("/friends/:friendUserId", authorizedMiddleware, friendActionLimiter, authController.removeFriend);
 router.get("/user/:id", authorizedMiddleware, authController.getCurrentUser);
 router.post("/totp/setup", authorizedMiddleware, authController.setupTotp);

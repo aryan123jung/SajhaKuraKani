@@ -94,6 +94,7 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.oauthSubject;
         delete sanitized.resetPasswordTokenHash;
         delete sanitized.resetPasswordExpiresAt;
+        delete sanitized.friends;
         delete sanitized.blockedUsers;
         delete sanitized.isBanned;
         delete sanitized.bannedAt;
@@ -112,6 +113,7 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.oauthSubject;
         delete sanitized.resetPasswordTokenHash;
         delete sanitized.resetPasswordExpiresAt;
+        delete sanitized.friends;
         delete sanitized.blockedUsers;
         delete sanitized.isBanned;
         delete sanitized.bannedAt;

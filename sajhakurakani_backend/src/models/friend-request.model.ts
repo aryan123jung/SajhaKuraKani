@@ -4,7 +4,8 @@ export type FriendRequestStatus =
   | "pending"
   | "accepted"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  | "expired";
 
 export interface IFriendRequest extends Document {
   _id: mongoose.Types.ObjectId;
@@ -41,7 +42,7 @@ const friendRequestSchema = new Schema<IFriendRequest>(
     },
     status: {
       type: String,
-      enum: ["pending", "accepted", "rejected", "cancelled"],
+      enum: ["pending", "accepted", "rejected", "cancelled", "expired"],
       default: "pending",
       index: true,
     },

@@ -2,6 +2,8 @@ import { UserService } from "../services/user.services";
 import { Request, Response } from "express";
 import z from "zod";
 import {
+    BlockUserDto,
+    CreateFriendRequestReportDto,
     CreateUserDto,
     FriendOverviewQueryDto,
     FriendRequestParamsDto,
@@ -14,6 +16,7 @@ import {
     ResetPasswordDto,
     SearchUsersQueryDto,
     SendFriendRequestDto,
+    UnblockUserParamsDto,
     VerifyGoogleOAuthTotpDto,
     VerifyLoginTotpDto,
     VerifyTotpDto,
@@ -684,9 +687,9 @@ export class AuthController {
             }
 
             await userService.sendFriendRequest(userId, parsedBody.data, getClientIp(req));
-            return res.status(201).json({
+            return res.status(200).json({
                 success: true,
-                message: "Friend request sent successfully",
+                message: "If that account accepts requests, your friend request has been processed.",
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -710,7 +713,11 @@ export class AuthController {
                 });
             }
 
-            await userService.acceptFriendRequest(userId, parsedParams.data.requestId);
+            await userService.acceptFriendRequest(
+                userId,
+                parsedParams.data.requestId,
+                getClientIp(req)
+            );
             return res.status(200).json({
                 success: true,
                 message: "Friend request accepted successfully",
@@ -737,7 +744,11 @@ export class AuthController {
                 });
             }
 
-            await userService.rejectFriendRequest(userId, parsedParams.data.requestId);
+            await userService.rejectFriendRequest(
+                userId,
+                parsedParams.data.requestId,
+                getClientIp(req)
+            );
             return res.status(200).json({
                 success: true,
                 message: "Friend request rejected successfully",
@@ -764,7 +775,11 @@ export class AuthController {
                 });
             }
 
-            await userService.cancelFriendRequest(userId, parsedParams.data.requestId);
+            await userService.cancelFriendRequest(
+                userId,
+                parsedParams.data.requestId,
+                getClientIp(req)
+            );
             return res.status(200).json({
                 success: true,
                 message: "Friend request cancelled successfully",
@@ -795,6 +810,102 @@ export class AuthController {
             return res.status(200).json({
                 success: true,
                 message: "Friend removed successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async blockUser(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedBody = BlockUserDto.safeParse(req.body);
+            if (!parsedBody.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedBody.error),
+                });
+            }
+
+            await userService.blockUser(userId, parsedBody.data.blockedUserId, getClientIp(req));
+            return res.status(200).json({
+                success: true,
+                message: "User blocked successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async unblockUser(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = UnblockUserParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            await userService.unblockUser(userId, parsedParams.data.blockedUserId, getClientIp(req));
+            return res.status(200).json({
+                success: true,
+                message: "User unblocked successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async reportFriendRequest(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = FriendRequestParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            const parsedBody = CreateFriendRequestReportDto.safeParse(req.body);
+            if (!parsedBody.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedBody.error),
+                });
+            }
+
+            const report = await userService.reportFriendRequest(
+                userId,
+                parsedParams.data.requestId,
+                parsedBody.data,
+                getClientIp(req)
+            );
+
+            return res.status(201).json({
+                success: true,
+                message: "Friend request reported successfully",
+                data: report,
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(

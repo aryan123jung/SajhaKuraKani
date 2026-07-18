@@ -1,4 +1,5 @@
 import {
+  CreateFriendRequestReportDto,
   CreateUserDto,
   FriendOverviewQueryDto,
   LoginUserDto,
@@ -16,7 +17,10 @@ import {
   EMAIL_VERIFICATION_TOKEN_EXPIRY_MS,
   FRIEND_NEW_ACCOUNT_WINDOW_DAYS,
   FRIEND_OUTGOING_REQUEST_DAILY_LIMIT,
+  FRIEND_OUTGOING_REQUEST_HOURLY_LIMIT,
   FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_DAILY_LIMIT,
+  FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_HOURLY_LIMIT,
+  FRIEND_REQUEST_PENDING_EXPIRY_DAYS,
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
@@ -36,7 +40,9 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
+import { FriendRequestAuditModel } from "../models/friend-request-audit.model";
 import { FriendRequestModel } from "../models/friend-request.model";
+import { FriendRequestReportModel } from "../models/friend-request-report.model";
 import { IUser, UserModel } from "../models/user.model";
 import { AuthSessionRepository } from "../repositories/auth-session.repository";
 import { EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository";
@@ -68,6 +74,8 @@ const FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE =
   "This user already sent you a friend request.";
 const ALREADY_FRIENDS_MESSAGE = "You are already connected as friends.";
 const FRIEND_OUTGOING_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
+const FRIEND_OUTGOING_REQUEST_HOURLY_WINDOW_MS = 60 * 60 * 1000;
+const FRIEND_REQUEST_MIN_PROCESSING_MS = 120;
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -193,6 +201,22 @@ export class UserService {
     );
   }
 
+  private async logFriendRequestAuditEvent(params: {
+    action: "sent" | "accepted" | "declined" | "cancelled" | "blocked";
+    actorUserId: string;
+    targetUserId: string;
+    friendRequestId?: string;
+    ipAddress?: string;
+  }) {
+    await FriendRequestAuditModel.create({
+      action: params.action,
+      actorUserId: params.actorUserId,
+      targetUserId: params.targetUserId,
+      friendRequest: params.friendRequestId,
+      ipAddress: params.ipAddress,
+    });
+  }
+
   private async getPendingFriendRequestForActor(
     requestId: string,
     actorUserId: string,
@@ -214,6 +238,48 @@ export class UserService {
     return request;
   }
 
+  private async enforceMinimumFriendRequestProcessingTime(startedAt: number) {
+    const elapsedMs = Date.now() - startedAt;
+    const remainingMs = FRIEND_REQUEST_MIN_PROCESSING_MS - elapsedMs;
+
+    if (remainingMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingMs));
+    }
+  }
+
+  private async expireStalePendingFriendRequests(filter?: {
+    actorUserId?: string;
+    pairKey?: string;
+  }) {
+    const cutoffDate = new Date(
+      Date.now() - FRIEND_REQUEST_PENDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+    );
+    const query: Record<string, unknown> = {
+      status: "pending",
+      createdAt: { $lt: cutoffDate },
+    };
+
+    if (filter?.pairKey) {
+      query.pairKey = filter.pairKey;
+    } else if (filter?.actorUserId) {
+      query.$or = [{ sender: filter.actorUserId }, { recipient: filter.actorUserId }];
+    }
+
+    const result = await FriendRequestModel.updateMany(query, {
+      status: "expired",
+      respondedAt: new Date(),
+    });
+
+    if (result.modifiedCount > 0) {
+      // abuse prevention
+      this.logSecurityEvent("friend_request_auto_expired", {
+        modifiedCount: result.modifiedCount,
+        actorUserId: filter?.actorUserId,
+        pairKey: filter?.pairKey,
+      });
+    }
+  }
+
   private getFriendOutgoingDailyLimit(user: IUser) {
     const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
     const isNewAccount =
@@ -227,7 +293,41 @@ export class UserService {
     return FRIEND_OUTGOING_REQUEST_DAILY_LIMIT;
   }
 
+  private getFriendOutgoingHourlyLimit(user: IUser) {
+    const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
+    const isNewAccount =
+      accountAgeMs < FRIEND_NEW_ACCOUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+    if (isNewAccount || !user.emailVerified) {
+      return FRIEND_OUTGOING_REQUEST_NEW_ACCOUNT_HOURLY_LIMIT;
+    }
+
+    return FRIEND_OUTGOING_REQUEST_HOURLY_LIMIT;
+  }
+
   private async assertCanSendOutgoingFriendRequest(user: IUser, requestIp?: string) {
+    const hourlyLimit = this.getFriendOutgoingHourlyLimit(user);
+    const hourlyRateLimitKey = `friend-outgoing-hourly:${user._id.toString()}:${requestIp || "unknown"}`;
+    const hourlyRateLimitState = await securityStateStore.incrementRateLimitCounter(
+      hourlyRateLimitKey,
+      FRIEND_OUTGOING_REQUEST_HOURLY_WINDOW_MS
+    );
+
+    if (hourlyRateLimitState.count > hourlyLimit) {
+      // abuse prevention
+      this.logSecurityEvent("friend_request_hourly_abuse_limit_exceeded", {
+        userId: user._id.toString(),
+        ipAddress: requestIp,
+        count: hourlyRateLimitState.count,
+        retryAfterMs: hourlyRateLimitState.retryAfterMs,
+        hourlyLimit,
+      });
+      throw new HttpError(
+        429,
+        "Too many outgoing friend requests were sent from this account. Please try again later."
+      );
+    }
+
     const dailyLimit = this.getFriendOutgoingDailyLimit(user);
     const rateLimitKey = `friend-outgoing-daily:${user._id.toString()}:${requestIp || "unknown"}`;
     const { count, retryAfterMs } =
@@ -1014,6 +1114,8 @@ export class UserService {
   }
 
   async listFriendOverview(userId: string, query: FriendOverviewQueryDto) {
+    await this.expireStalePendingFriendRequests({ actorUserId: userId });
+
     const user = await userRepository.getUserById(userId);
     if (!user) {
       throw new HttpError(404, "User not found");
@@ -1110,77 +1212,106 @@ export class UserService {
     payload: SendFriendRequestDto,
     requestIp?: string
   ) {
-    if (userId === payload.recipientUserId) {
-      throw new HttpError(400, "You cannot send a friend request to yourself");
-    }
+    const startedAt = Date.now();
 
-    const [sender, recipient] = await Promise.all([
-      userRepository.getUserById(userId),
-      userRepository.getUserById(payload.recipientUserId),
-    ]);
-
-    if (!sender || !recipient) {
-      throw new HttpError(404, "User not found");
-    }
-
-    this.assertUserCanParticipateInFriendRequests(sender, "sender");
-    this.assertUserCanParticipateInFriendRequests(recipient, "recipient");
-
-    // input validation
-    if (
-      hasBlockedUser(recipient, userId) ||
-      hasBlockedUser(sender, recipient._id.toString())
-    ) {
-      throw new HttpError(404, "User not found");
-    }
-
-    await this.assertCanSendOutgoingFriendRequest(sender, requestIp);
-
-    const senderFriendIds = (sender.friends || []).map((friendId) => friendId.toString());
-    if (senderFriendIds.includes(recipient._id.toString())) {
-      throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
-    }
-
-    const pairKey = createFriendPairKey(userId, recipient._id.toString());
-    const existingRequest = await FriendRequestModel.findOne({ pairKey });
-
-    if (existingRequest?.status === "pending") {
-      if (existingRequest.sender.toString() === userId) {
-        throw new HttpError(409, FRIEND_REQUEST_ALREADY_SENT_MESSAGE);
+    try {
+      if (userId === payload.recipientUserId) {
+        throw new HttpError(400, "You cannot send a friend request to yourself");
       }
 
-      throw new HttpError(409, FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE);
-    }
+      const pairKey = createFriendPairKey(userId, payload.recipientUserId);
+      await this.expireStalePendingFriendRequests({ pairKey });
 
-    if (
-      existingRequest?.status === "accepted" &&
-      senderFriendIds.includes(recipient._id.toString())
-    ) {
-      throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
-    }
+      const [sender, recipient, existingRequest] = await Promise.all([
+        userRepository.getUserById(userId),
+        userRepository.getUserById(payload.recipientUserId),
+        FriendRequestModel.findOne({ pairKey }),
+      ]);
 
-    if (existingRequest) {
-      existingRequest.sender = sender._id;
-      existingRequest.recipient = recipient._id;
-      existingRequest.status = "pending";
-      existingRequest.respondedAt = undefined;
-      await existingRequest.save();
-    } else {
-      await FriendRequestModel.create({
-        sender: sender._id,
-        recipient: recipient._id,
-        pairKey,
-        status: "pending",
+      if (!sender) {
+        throw new HttpError(404, "User not found");
+      }
+
+      this.assertUserCanParticipateInFriendRequests(sender, "sender");
+      await this.assertCanSendOutgoingFriendRequest(sender, requestIp);
+
+      if (
+        !recipient ||
+        recipient.role !== "user" ||
+        !recipient.emailVerified ||
+        recipient.isBanned ||
+        hasBlockedUser(recipient, userId) ||
+        hasBlockedUser(sender, payload.recipientUserId)
+      ) {
+        this.logSecurityEvent("friend_request_private_noop", {
+          senderUserId: userId,
+          recipientUserId: payload.recipientUserId,
+          ipAddress: requestIp,
+        });
+        return { delivered: false as const };
+      }
+
+      const senderFriendIds = (sender.friends || []).map((friendId) => friendId.toString());
+      if (senderFriendIds.includes(recipient._id.toString())) {
+        throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
+      }
+
+      if (existingRequest?.status === "pending") {
+        if (existingRequest.sender.toString() === userId) {
+          throw new HttpError(409, FRIEND_REQUEST_ALREADY_SENT_MESSAGE);
+        }
+
+        throw new HttpError(409, FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE);
+      }
+
+      if (
+        existingRequest?.status === "accepted" &&
+        senderFriendIds.includes(recipient._id.toString())
+      ) {
+        throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
+      }
+
+      let activeRequestId = existingRequest?._id?.toString();
+
+      if (existingRequest) {
+        existingRequest.sender = sender._id;
+        existingRequest.recipient = recipient._id;
+        existingRequest.status = "pending";
+        existingRequest.respondedAt = undefined;
+        await existingRequest.save();
+        activeRequestId = existingRequest._id.toString();
+      } else {
+        const createdRequest = await FriendRequestModel.create({
+          sender: sender._id,
+          recipient: recipient._id,
+          pairKey,
+          status: "pending",
+        });
+        activeRequestId = createdRequest._id.toString();
+      }
+
+      this.logSecurityEvent("friend_request_sent", {
+        senderUserId: userId,
+        recipientUserId: recipient._id.toString(),
+        ipAddress: requestIp,
       });
-    }
+      await this.logFriendRequestAuditEvent({
+        action: "sent",
+        actorUserId: userId,
+        targetUserId: recipient._id.toString(),
+        friendRequestId: activeRequestId,
+        ipAddress: requestIp,
+      });
 
-    this.logSecurityEvent("friend_request_sent", {
-      senderUserId: userId,
-      recipientUserId: recipient._id.toString(),
-    });
+      return { delivered: true as const };
+    } finally {
+      await this.enforceMinimumFriendRequestProcessingTime(startedAt);
+    }
   }
 
-  async acceptFriendRequest(userId: string, requestId: string) {
+  async acceptFriendRequest(userId: string, requestId: string, requestIp?: string) {
+    await this.expireStalePendingFriendRequests({ actorUserId: userId });
+
     const request = await this.getPendingFriendRequestForActor(
       requestId,
       userId,
@@ -1216,10 +1347,20 @@ export class UserService {
       requestId,
       recipientUserId: userId,
       senderUserId: request.sender.toString(),
+      ipAddress: requestIp,
+    });
+    await this.logFriendRequestAuditEvent({
+      action: "accepted",
+      actorUserId: userId,
+      targetUserId: request.sender.toString(),
+      friendRequestId: requestId,
+      ipAddress: requestIp,
     });
   }
 
-  async rejectFriendRequest(userId: string, requestId: string) {
+  async rejectFriendRequest(userId: string, requestId: string, requestIp?: string) {
+    await this.expireStalePendingFriendRequests({ actorUserId: userId });
+
     const request = await this.getPendingFriendRequestForActor(
       requestId,
       userId,
@@ -1234,10 +1375,20 @@ export class UserService {
       requestId,
       recipientUserId: userId,
       senderUserId: request.sender.toString(),
+      ipAddress: requestIp,
+    });
+    await this.logFriendRequestAuditEvent({
+      action: "declined",
+      actorUserId: userId,
+      targetUserId: request.sender.toString(),
+      friendRequestId: requestId,
+      ipAddress: requestIp,
     });
   }
 
-  async cancelFriendRequest(userId: string, requestId: string) {
+  async cancelFriendRequest(userId: string, requestId: string, requestIp?: string) {
+    await this.expireStalePendingFriendRequests({ actorUserId: userId });
+
     const request = await this.getPendingFriendRequestForActor(
       requestId,
       userId,
@@ -1252,6 +1403,14 @@ export class UserService {
       requestId,
       senderUserId: userId,
       recipientUserId: request.recipient.toString(),
+      ipAddress: requestIp,
+    });
+    await this.logFriendRequestAuditEvent({
+      action: "cancelled",
+      actorUserId: userId,
+      targetUserId: request.recipient.toString(),
+      friendRequestId: requestId,
+      ipAddress: requestIp,
     });
   }
 
@@ -1293,6 +1452,131 @@ export class UserService {
       userId,
       removedFriendUserId: friendUserId,
     });
+  }
+
+  async blockUser(userId: string, blockedUserId: string, requestIp?: string) {
+    if (userId === blockedUserId) {
+      throw new HttpError(400, "You cannot block yourself");
+    }
+
+    const [user, targetUser] = await Promise.all([
+      userRepository.getUserById(userId),
+      userRepository.getUserById(blockedUserId),
+    ]);
+
+    if (!user || !targetUser || targetUser.role !== "user") {
+      throw new HttpError(404, "User not found");
+    }
+
+    const pairKey = createFriendPairKey(userId, blockedUserId);
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        // abuse prevention
+        await UserModel.updateOne(
+          { _id: user._id },
+          { $addToSet: { blockedUsers: targetUser._id }, $pull: { friends: targetUser._id } },
+          { session }
+        );
+        await UserModel.updateOne(
+          { _id: targetUser._id },
+          { $pull: { friends: user._id } },
+          { session }
+        );
+        await FriendRequestModel.updateMany(
+          {
+            pairKey,
+            status: "pending",
+          },
+          {
+            status: "cancelled",
+            respondedAt: new Date(),
+          },
+          { session }
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    this.logSecurityEvent("friend_user_blocked", {
+      userId,
+      blockedUserId,
+      ipAddress: requestIp,
+    });
+    await this.logFriendRequestAuditEvent({
+      action: "blocked",
+      actorUserId: userId,
+      targetUserId: blockedUserId,
+      ipAddress: requestIp,
+    });
+  }
+
+  async unblockUser(userId: string, blockedUserId: string, requestIp?: string) {
+    await UserModel.updateOne(
+      { _id: userId },
+      { $pull: { blockedUsers: blockedUserId as any } }
+    );
+
+    this.logSecurityEvent("friend_user_unblocked", {
+      userId,
+      unblockedUserId: blockedUserId,
+      ipAddress: requestIp,
+    });
+  }
+
+  async reportFriendRequest(
+    userId: string,
+    requestId: string,
+    payload: CreateFriendRequestReportDto,
+    requestIp?: string
+  ) {
+    await this.expireStalePendingFriendRequests({ actorUserId: userId });
+
+    const request = await FriendRequestModel.findById(requestId);
+    if (!request) {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    const isSender = request.sender.toString() === userId;
+    const isRecipient = request.recipient.toString() === userId;
+    if (!isSender && !isRecipient) {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    const reportedUserId = isSender
+      ? request.recipient.toString()
+      : request.sender.toString();
+
+    const existingReport = await FriendRequestReportModel.findOne({
+      friendRequest: request._id,
+      reporter: userId,
+      status: "open",
+    });
+
+    if (existingReport) {
+      throw new HttpError(409, "You have already reported this friend request");
+    }
+
+    const report = await FriendRequestReportModel.create({
+      friendRequest: request._id,
+      reporter: userId,
+      reportedUser: reportedUserId,
+      reason: payload.reason,
+      details: payload.details,
+      status: "open",
+    });
+
+    this.logSecurityEvent("friend_request_reported", {
+      requestId,
+      reporterUserId: userId,
+      reportedUserId,
+      ipAddress: requestIp,
+      reason: payload.reason,
+    });
+
+    return report;
   }
 
   async updateUser(
