@@ -68,14 +68,6 @@ app.use(
         redirect: false,
     })
 );
-app.use(
-    "/uploads/chautari/profile",
-    express.static(path.resolve(process.cwd(), "uploads/chautari/profile"), {
-        fallthrough: true,
-        index: false,
-        redirect: false,
-    })
-);
 app.use(sanitizeRequestMiddleware);
 app.use(
     createRateLimitMiddleware({

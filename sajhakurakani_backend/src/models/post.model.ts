@@ -3,9 +3,12 @@ import mongoose, { Document, Schema } from "mongoose";
 export type PostVisibility =
   | "public"
   | "private"
-  | "friends-only"
-  | "community-only";
+  | "friends-only";
 export type PostMediaType = "image" | "video";
+export type PostInteractionPrivacy =
+  | "everyone"
+  | "friends-only"
+  | "no-one";
 
 export interface IPostMedia {
   url: string;
@@ -20,7 +23,11 @@ export interface IPost extends Document {
   content?: string;
   titleEncrypted?: string;
   contentEncrypted?: string;
+  contentHash?: string;
+  duplicateFingerprint?: string;
   visibility: PostVisibility;
+  commentPrivacy: PostInteractionPrivacy;
+  sharePrivacy: PostInteractionPrivacy;
   media: IPostMedia[];
   createdAt: Date;
   updatedAt: Date;
@@ -69,11 +76,37 @@ const postSchema = new Schema<IPost>(
       trim: true,
       maxlength: 8192,
     },
+    contentHash: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 128,
+      select: false,
+      index: true,
+    },
+    duplicateFingerprint: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 128,
+      select: false,
+      index: true,
+    },
     visibility: {
       type: String,
-      enum: ["public", "private", "friends-only", "community-only"],
+      enum: ["public", "private", "friends-only"],
       default: "public",
       index: true,
+    },
+    commentPrivacy: {
+      type: String,
+      enum: ["everyone", "friends-only", "no-one"],
+      default: "everyone",
+    },
+    sharePrivacy: {
+      type: String,
+      enum: ["everyone", "friends-only", "no-one"],
+      default: "everyone",
     },
     media: {
       type: [postMediaSchema],
@@ -90,5 +123,6 @@ const postSchema = new Schema<IPost>(
 );
 
 postSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ author: 1, duplicateFingerprint: 1, createdAt: -1 });
 
 export const PostModel = mongoose.model<IPost>("Post", postSchema);

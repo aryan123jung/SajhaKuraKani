@@ -6,9 +6,13 @@ import { PostRepository } from "../repositories/post.repository";
 import { UserRepository } from "../repositories/user.repository";
 import { CreatePostInput, UpdatePostInput } from "../dtos/post.dtos";
 import { POST_MEDIA_RESCAN_ON_READ } from "../configs";
+import { PostReportRepository } from "../repositories/post-report.repository";
 import { moderatePostContent } from "./post-moderation.service";
 import { scanPostMediaFile } from "./post-antivirus.service";
-import { createPostContentHash } from "../utils/post-audit.util";
+import {
+  createPostContentHash,
+  createPostDuplicateFingerprint,
+} from "../utils/post-audit.util";
 import { sanitizePostText } from "../utils/post-sanitizer.util";
 import {
   assertPostContentDoesNotContainSensitiveData,
@@ -30,8 +34,10 @@ import {
   assertCanViewPost,
   canViewPost,
 } from "../utils/post-visibility.util";
+import { assertPostLinksAreSafe } from "../utils/post-link-security.util";
 
 const postRepository = new PostRepository();
+const postReportRepository = new PostReportRepository();
 const userRepository = new UserRepository();
 
 const mapPostMedia = (files: Express.Multer.File[]): IPostMedia[] =>
@@ -62,6 +68,11 @@ export class PostService {
       visibility: payload.visibility,
       files,
     });
+    const duplicateFingerprint = createPostDuplicateFingerprint({
+      title,
+      content,
+      files,
+    });
 
     if (!title && !content && media.length === 0) {
       cleanupUploadedFiles(files);
@@ -75,15 +86,33 @@ export class PostService {
 
     // sensitive content protection
     assertPostContentDoesNotContainSensitiveData(title, content);
+    // malicious link detection
+    assertPostLinksAreSafe(title, content);
     // content moderation pipeline
     moderatePostContent(title, content);
+    // duplicate post detection
+    const recentDuplicate = await postRepository.findRecentDuplicateByAuthor(
+      authorId,
+      duplicateFingerprint
+    );
+    if (recentDuplicate) {
+      cleanupUploadedFiles(files);
+      throw new HttpError(
+        409,
+        "A very similar post was already shared recently. Please avoid duplicate posting."
+      );
+    }
     // data encryption at rest
     const encryptedFields = encryptPostFields(title, content);
 
     const createdPost = await postRepository.createPost({
       author: author._id,
       ...encryptedFields,
+      contentHash,
+      duplicateFingerprint,
       visibility: payload.visibility,
+      commentPrivacy: payload.commentPrivacy,
+      sharePrivacy: payload.sharePrivacy,
       media,
     });
 
@@ -198,8 +227,13 @@ export class PostService {
 
     const nextTitle = title ?? existingDecryptedFields.title;
     const nextContent = content ?? existingDecryptedFields.content;
+    const nextDuplicateFingerprint = createPostDuplicateFingerprint({
+      title: nextTitle,
+      content: nextContent,
+    });
 
     assertPostContentDoesNotContainSensitiveData(nextTitle, nextContent);
+    assertPostLinksAreSafe(nextTitle, nextContent);
     moderatePostContent(nextTitle, nextContent);
 
     const encryptedUpdates =
@@ -209,7 +243,19 @@ export class PostService {
 
     const updatedPost = await postRepository.updatePost(postId, {
       ...encryptedUpdates,
+      duplicateFingerprint: nextDuplicateFingerprint,
+      contentHash: createPostContentHash({
+        title: nextTitle,
+        content: nextContent,
+        visibility: payload.visibility ?? existingPost.visibility,
+      }),
       ...(payload.visibility !== undefined ? { visibility: payload.visibility } : {}),
+      ...(payload.commentPrivacy !== undefined
+        ? { commentPrivacy: payload.commentPrivacy }
+        : {}),
+      ...(payload.sharePrivacy !== undefined
+        ? { sharePrivacy: payload.sharePrivacy }
+        : {}),
     });
 
     if (!updatedPost) {
@@ -315,6 +361,85 @@ export class PostService {
       fileSize: fileStats.size,
       fileName: path.basename(resolvedFilePath),
       visibility: post.visibility,
+    };
+  }
+
+  async reportPost(
+    reporterId: string,
+    postId: string,
+    payload: {
+      reason: string;
+      details?: string;
+    }
+  ) {
+    const post = await postRepository.getPostByIdForAccess(postId);
+    if (!post) {
+      throw new HttpError(404, "Post was not found");
+    }
+
+    if (post.author.toString() === reporterId) {
+      throw new HttpError(400, "You cannot report your own post");
+    }
+
+    assertCanViewPost(post, reporterId);
+
+    const existingOpenReport =
+      await postReportRepository.getOpenReportByReporterForPost(reporterId, postId);
+    if (existingOpenReport) {
+      throw new HttpError(409, "You have already reported this post");
+    }
+
+    const details = sanitizePostText(payload.details);
+
+    const report = await postReportRepository.createReport({
+      post: post._id,
+      reporter: reporterId as any,
+      reason: payload.reason as any,
+      details,
+      status: "open",
+    });
+
+    if (!report) {
+      throw new HttpError(500, "Report could not be created");
+    }
+
+    return report;
+  }
+
+  async getMyReports(reporterId: string, page: number, size: number) {
+    return postReportRepository.listReportsByReporter(reporterId, page, size);
+  }
+
+  async deleteAllPersonalPosts(authorId: string) {
+    const posts = await postRepository.listAllPostsByAuthor(authorId);
+
+    for (const post of posts) {
+      for (const mediaItem of post.media) {
+        try {
+          const mediaUrl = new URL(mediaItem.url, "http://localhost");
+          const segments = mediaUrl.pathname.split("/").filter(Boolean);
+          const kind = segments[3];
+          const filename = segments[4];
+
+          if (
+            (kind === "images" || kind === "videos") &&
+            typeof filename === "string"
+          ) {
+            const filePath = getPostMediaStoragePath(
+              kind as PostMediaStorageKind,
+              filename
+            );
+            fs.unlinkSync(filePath);
+          }
+        } catch {
+          // Best-effort cleanup for bulk deleted post media.
+        }
+      }
+    }
+
+    const deleteResult = await postRepository.deletePostsByAuthor(authorId);
+    return {
+      deletedCount: deleteResult.deletedCount ?? 0,
     };
   }
 }

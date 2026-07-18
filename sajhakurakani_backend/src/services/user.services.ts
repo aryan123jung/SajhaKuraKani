@@ -1,4 +1,10 @@
-import { CreateUserDto, LoginUserDto, UpdateUserDto } from "../dtos/user.dtos";
+import {
+  CreateUserDto,
+  FriendOverviewQueryDto,
+  LoginUserDto,
+  SendFriendRequestDto,
+  UpdateUserDto,
+} from "../dtos/user.dtos";
 import bcryptjs from "bcryptjs";
 import { UserRepository } from "../repositories/user.repository";
 import jwt from "jsonwebtoken";
@@ -27,7 +33,8 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import { HttpError } from "../errors/http-error";
 import { sendEmail } from "../configs/email";
-import { IUser } from "../models/user.model";
+import { FriendRequestModel } from "../models/friend-request.model";
+import { IUser, UserModel } from "../models/user.model";
 import { AuthSessionRepository } from "../repositories/auth-session.repository";
 import { EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository";
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
@@ -52,6 +59,10 @@ const GENERIC_LOGIN_FAILURE_MESSAGE = "The credential you entered is incorrect."
 const ACCOUNT_LOCKED_MESSAGE = "Too many sign-in attempts. Try again later.";
 const IP_BLOCKED_MESSAGE = "Too many sign-in attempts from this network. Try again later.";
 const EMAIL_VERIFICATION_REQUIRED_MESSAGE = "Verify email first";
+const FRIEND_REQUEST_ALREADY_SENT_MESSAGE = "A friend request has already been sent.";
+const FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE =
+  "This user already sent you a friend request.";
+const ALREADY_FRIENDS_MESSAGE = "You are already connected as friends.";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -93,6 +104,17 @@ const sanitizeUser = (user: IUser) => {
   return userObject;
 };
 
+const FRIEND_PROFILE_SELECT =
+  "firstName lastName username profileUrl coverUrl createdAt updatedAt";
+
+const toFriendProfile = (user: Partial<IUser> & { _id: mongoose.Types.ObjectId | string }) => ({
+  id: user._id.toString(),
+  firstName: user.firstName || "",
+  lastName: user.lastName || "",
+  username: user.username || "",
+  profileUrl: user.profileUrl || null,
+});
+
 const hashPassword = async (password: string) => {
   return bcryptjs.hash(password, PASSWORD_HASH_ROUNDS);
 };
@@ -113,6 +135,8 @@ const normalizeUsername = (username: string) => username.trim().toLowerCase();
 const normalizeNamePart = (value: string | undefined, fallback: string) =>
   value?.trim().slice(0, 50) || fallback;
 const randomPassword = () => crypto.randomBytes(24).toString("base64url");
+const createFriendPairKey = (firstUserId: string, secondUserId: string) =>
+  [firstUserId, secondUserId].sort().join(":");
 const buildGoogleAuthUrl = (state: string) => {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -911,6 +935,278 @@ export class UserService {
     };
 
     return { users, pagination };
+  }
+
+  async listFriendOverview(userId: string, query: FriendOverviewQueryDto) {
+    const user = await userRepository.getUserById(userId);
+    if (!user) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const trimmedSearch = query.search?.trim();
+    const searchRegex = trimmedSearch ? new RegExp(trimmedSearch, "i") : undefined;
+    const friendIds = (user.friends || []).map((friendId) => friendId.toString());
+
+    const friendFilter: Record<string, unknown> = {
+      _id: { $in: friendIds },
+      role: "user",
+      emailVerified: true,
+    };
+
+    if (searchRegex) {
+      friendFilter.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+      ];
+    }
+
+    const friends = friendIds.length
+      ? await UserModel.find(friendFilter)
+          .select(FRIEND_PROFILE_SELECT)
+          .sort({ firstName: 1, lastName: 1 })
+      : [];
+
+    const incomingRequests = await FriendRequestModel.find({
+      recipient: user._id,
+      status: "pending",
+    })
+      .populate("sender", FRIEND_PROFILE_SELECT)
+      .sort({ createdAt: -1 });
+
+    const outgoingRequests = await FriendRequestModel.find({
+      sender: user._id,
+      status: "pending",
+    })
+      .populate("recipient", FRIEND_PROFILE_SELECT)
+      .sort({ createdAt: -1 });
+
+    const excludedIds = new Set<string>([userId, ...friendIds]);
+
+    incomingRequests.forEach((request) => {
+      const sender = request.sender as unknown as IUser;
+      excludedIds.add(sender._id.toString());
+    });
+    outgoingRequests.forEach((request) => {
+      const recipient = request.recipient as unknown as IUser;
+      excludedIds.add(recipient._id.toString());
+    });
+
+    const discoverFilter: Record<string, unknown> = {
+      _id: { $nin: Array.from(excludedIds) },
+      role: "user",
+      emailVerified: true,
+    };
+
+    if (searchRegex) {
+      discoverFilter.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+      ];
+    }
+
+    const discoverUsers = await UserModel.find(discoverFilter)
+      .select(FRIEND_PROFILE_SELECT)
+      .sort({ createdAt: -1 })
+      .limit(trimmedSearch ? 12 : 8);
+
+    return {
+      friends: friends.map((friend) => toFriendProfile(friend)),
+      incomingRequests: incomingRequests.map((request) => ({
+        id: request._id.toString(),
+        createdAt: request.createdAt,
+        user: toFriendProfile(request.sender as unknown as IUser),
+      })),
+      outgoingRequests: outgoingRequests.map((request) => ({
+        id: request._id.toString(),
+        createdAt: request.createdAt,
+        user: toFriendProfile(request.recipient as unknown as IUser),
+      })),
+      discoverUsers: discoverUsers.map((discoverUser) => toFriendProfile(discoverUser)),
+    };
+  }
+
+  async sendFriendRequest(userId: string, payload: SendFriendRequestDto) {
+    if (userId === payload.recipientUserId) {
+      throw new HttpError(400, "You cannot send a friend request to yourself");
+    }
+
+    const [sender, recipient] = await Promise.all([
+      userRepository.getUserById(userId),
+      userRepository.getUserById(payload.recipientUserId),
+    ]);
+
+    if (!sender || !recipient || recipient.role !== "user" || !recipient.emailVerified) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const senderFriendIds = (sender.friends || []).map((friendId) => friendId.toString());
+    if (senderFriendIds.includes(recipient._id.toString())) {
+      throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
+    }
+
+    const pairKey = createFriendPairKey(userId, recipient._id.toString());
+    const existingRequest = await FriendRequestModel.findOne({ pairKey });
+
+    if (existingRequest?.status === "pending") {
+      if (existingRequest.sender.toString() === userId) {
+        throw new HttpError(409, FRIEND_REQUEST_ALREADY_SENT_MESSAGE);
+      }
+
+      throw new HttpError(409, FRIEND_REQUEST_ALREADY_RECEIVED_MESSAGE);
+    }
+
+    if (
+      existingRequest?.status === "accepted" &&
+      senderFriendIds.includes(recipient._id.toString())
+    ) {
+      throw new HttpError(409, ALREADY_FRIENDS_MESSAGE);
+    }
+
+    if (existingRequest) {
+      existingRequest.sender = sender._id;
+      existingRequest.recipient = recipient._id;
+      existingRequest.status = "pending";
+      existingRequest.respondedAt = undefined;
+      await existingRequest.save();
+    } else {
+      await FriendRequestModel.create({
+        sender: sender._id,
+        recipient: recipient._id,
+        pairKey,
+        status: "pending",
+      });
+    }
+
+    this.logSecurityEvent("friend_request_sent", {
+      senderUserId: userId,
+      recipientUserId: recipient._id.toString(),
+    });
+  }
+
+  async acceptFriendRequest(userId: string, requestId: string) {
+    const request = await FriendRequestModel.findById(requestId);
+    if (!request || request.status !== "pending") {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    if (request.recipient.toString() !== userId) {
+      throw new HttpError(403, "You cannot manage this friend request");
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        // access control
+        await UserModel.updateOne(
+          { _id: request.sender },
+          { $addToSet: { friends: request.recipient } },
+          { session }
+        );
+        await UserModel.updateOne(
+          { _id: request.recipient },
+          { $addToSet: { friends: request.sender } },
+          { session }
+        );
+        await FriendRequestModel.updateOne(
+          { _id: request._id },
+          { status: "accepted", respondedAt: new Date() },
+          { session }
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    this.logSecurityEvent("friend_request_accepted", {
+      requestId,
+      recipientUserId: userId,
+      senderUserId: request.sender.toString(),
+    });
+  }
+
+  async rejectFriendRequest(userId: string, requestId: string) {
+    const request = await FriendRequestModel.findById(requestId);
+    if (!request || request.status !== "pending") {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    if (request.recipient.toString() !== userId) {
+      throw new HttpError(403, "You cannot manage this friend request");
+    }
+
+    request.status = "rejected";
+    request.respondedAt = new Date();
+    await request.save();
+
+    this.logSecurityEvent("friend_request_rejected", {
+      requestId,
+      recipientUserId: userId,
+      senderUserId: request.sender.toString(),
+    });
+  }
+
+  async cancelFriendRequest(userId: string, requestId: string) {
+    const request = await FriendRequestModel.findById(requestId);
+    if (!request || request.status !== "pending") {
+      throw new HttpError(404, "Friend request not found");
+    }
+
+    if (request.sender.toString() !== userId) {
+      throw new HttpError(403, "You cannot cancel this friend request");
+    }
+
+    request.status = "cancelled";
+    request.respondedAt = new Date();
+    await request.save();
+
+    this.logSecurityEvent("friend_request_cancelled", {
+      requestId,
+      senderUserId: userId,
+      recipientUserId: request.recipient.toString(),
+    });
+  }
+
+  async removeFriend(userId: string, friendUserId: string) {
+    const [user, friend] = await Promise.all([
+      userRepository.getUserById(userId),
+      userRepository.getUserById(friendUserId),
+    ]);
+
+    if (!user || !friend) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const friendIds = (user.friends || []).map((friendId) => friendId.toString());
+    if (!friendIds.includes(friendUserId)) {
+      throw new HttpError(404, "Friend connection not found");
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        await UserModel.updateOne(
+          { _id: user._id },
+          { $pull: { friends: friend._id } },
+          { session }
+        );
+        await UserModel.updateOne(
+          { _id: friend._id },
+          { $pull: { friends: user._id } },
+          { session }
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    this.logSecurityEvent("friend_removed", {
+      userId,
+      removedFriendUserId: friendUserId,
+    });
   }
 
   async updateUser(

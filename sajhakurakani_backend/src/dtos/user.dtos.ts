@@ -80,3 +80,36 @@ export const VerifyLoginTotpDto = z.object({
     code: z.string().regex(/^\d{6}$/, "TOTP code must be 6 digits"),
 });
 export type VerifyLoginTotpDto = z.infer<typeof VerifyLoginTotpDto>;
+
+const objectIdSchema = z.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier");
+const normalizeOptionalSearch = (value: unknown) => {
+    if (typeof value !== "string") {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+};
+
+export const FriendOverviewQueryDto = z.object({
+    search: z.preprocess(
+        normalizeOptionalSearch,
+        z.string().trim().max(80).optional()
+    ),
+});
+export type FriendOverviewQueryDto = z.infer<typeof FriendOverviewQueryDto>;
+
+export const SendFriendRequestDto = z.object({
+    recipientUserId: objectIdSchema,
+});
+export type SendFriendRequestDto = z.infer<typeof SendFriendRequestDto>;
+
+export const FriendRequestParamsDto = z.object({
+    requestId: objectIdSchema,
+});
+export type FriendRequestParamsDto = z.infer<typeof FriendRequestParamsDto>;
+
+export const RemoveFriendParamsDto = z.object({
+    friendUserId: objectIdSchema,
+});
+export type RemoveFriendParamsDto = z.infer<typeof RemoveFriendParamsDto>;

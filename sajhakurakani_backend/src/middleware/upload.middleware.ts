@@ -40,10 +40,6 @@ const storage = multer.diskStorage({
       }
     }
 
-    if (file.fieldname === "communityProfileUrl") {
-      folder = "uploads/chautari/profile";
-    }
-
     const uploadPath = path.resolve(process.cwd(), folder);
 
     if (!fs.existsSync(uploadPath)) {
@@ -69,8 +65,7 @@ const fileFilter = (
 
   if (
     file.fieldname === "profileUrl" ||
-    file.fieldname === "coverUrl" ||
-    file.fieldname === "communityProfileUrl"
+    file.fieldname === "coverUrl"
   ) {
     if (!isImageMime || !isAllowedExtension(file.originalname, IMAGE_EXTENSIONS)) {
       return cb(new HttpError(400, "Only image files are allowed"));

@@ -22,6 +22,7 @@ export interface IUser extends Document {
   emailVerifiedAt?: Date;
   resetPasswordTokenHash?: string;
   resetPasswordExpiresAt?: Date;
+  friends: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +66,10 @@ const userMongoSchema = new Schema<IUser>(
     emailVerifiedAt: { type: Date, required: false },
     resetPasswordTokenHash: { type: String, select: false },
     resetPasswordExpiresAt: { type: Date, select: false },
+    friends: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
   },
   {
     timestamps: true,

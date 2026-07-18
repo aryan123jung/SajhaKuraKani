@@ -135,7 +135,9 @@ export class UserRepository implements IUserRepository{
         search?: string
     ): Promise<{ users: IUser[]; total: number }> {
         const filter: QueryFilter<IUser> = {
-            role: "user" as any
+            role: "user" as any,
+            emailVerified: true as any,
+            _id: { $ne: currentUserId } as any,
         };
 
         if (search) {

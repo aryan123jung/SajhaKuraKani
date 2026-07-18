@@ -1,6 +1,12 @@
 import nodemailer from 'nodemailer';
-const EMAIL_PASS=process.env.EMAIL_PASS as string;
-const EMAIL_USER=process.env.EMAIL_USER as string;
+import { EMAIL_PASS, EMAIL_USER } from "./index";
+
+const ensureEmailSecretsConfigured = () => {
+    // api secrets
+    if (!EMAIL_USER || !EMAIL_PASS) {
+        throw new Error("Email service is not configured on the server");
+    }
+};
 
 export const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -16,6 +22,7 @@ export const sendEmail = async (
     html: string,
     text?: string
 ) => {
+    ensureEmailSecretsConfigured();
     const mailOptions = {
         from: `SajhaKuraKani <${EMAIL_USER}>`,
         to,

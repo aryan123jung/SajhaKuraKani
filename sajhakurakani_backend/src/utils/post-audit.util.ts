@@ -1,7 +1,12 @@
 import fs from "fs";
 import { createHash } from "crypto";
 
-type PostAuditAction = "post.create" | "post.update" | "post.delete";
+type PostAuditAction =
+  | "post.create"
+  | "post.update"
+  | "post.delete"
+  | "post.bulk-delete"
+  | "post.report";
 
 interface PostAuditLogInput {
   action: PostAuditAction;
@@ -43,6 +48,24 @@ export const createPostContentHash = ({
   return hash.digest("hex");
 };
 
+export const createPostDuplicateFingerprint = ({
+  title,
+  content,
+  files = [],
+}: Omit<CreatePostAuditHashInput, "visibility">) => {
+  const hash = createHash("sha256");
+
+  hash.update((title ?? "").trim().toLowerCase());
+  hash.update((content ?? "").trim().toLowerCase());
+
+  for (const file of files) {
+    hash.update(file.mimetype);
+    hash.update(String(file.size));
+  }
+
+  return hash.digest("hex");
+};
+
 export const logPostAuditEvent = ({
   action,
   postId,
@@ -68,4 +91,3 @@ export const logPostAuditEvent = ({
     })
   );
 };
-

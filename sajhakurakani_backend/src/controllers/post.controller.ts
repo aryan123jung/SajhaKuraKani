@@ -267,6 +267,39 @@ export class PostController {
     }
   }
 
+  async deleteAllMyPosts(req: Request, res: Response) {
+    try {
+      const requesterId = req.user?._id?.toString();
+      if (!requesterId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const result = await postService.deleteAllPersonalPosts(requesterId);
+
+      logPostAuditEvent({
+        action: "post.bulk-delete",
+        userId: requesterId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"],
+        contentHash: `deleted:${result.deletedCount}`,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "All of your posts were deleted successfully",
+        data: result,
+      });
+    } catch (error: Error | any) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message || "Internal Server Error",
+      });
+    }
+  }
+
   async getPostMedia(req: Request, res: Response) {
     try {
       const requesterId = req.user?._id?.toString();

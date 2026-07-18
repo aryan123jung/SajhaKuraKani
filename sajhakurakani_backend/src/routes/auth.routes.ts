@@ -2,6 +2,9 @@ import { Router } from "express";
 import {
     AUTH_RATE_LIMIT_MAX_REQUESTS,
     AUTH_RATE_LIMIT_WINDOW_MS,
+    FRIEND_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
+    FRIEND_RATE_LIMIT_WINDOW_MS,
     RESET_RATE_LIMIT_MAX_REQUESTS
 } from "../configs";
 import { AuthController } from "../controllers/auth.controller";
@@ -61,6 +64,28 @@ const sessionLimiter = createRateLimitMiddleware({
     },
 });
 
+const friendListLimiter = createRateLimitMiddleware({
+    keyPrefix: "friend-list",
+    windowMs: FRIEND_RATE_LIMIT_WINDOW_MS,
+    maxRequests: FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
+    message: "Too many friend list requests. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return `${getClientIp(req)}:${req.user?._id?.toString() || "anonymous"}`;
+    },
+});
+
+const friendActionLimiter = createRateLimitMiddleware({
+    keyPrefix: "friend-action",
+    windowMs: FRIEND_RATE_LIMIT_WINDOW_MS,
+    maxRequests: FRIEND_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    message: "Too many friend actions were made. Please try again later.",
+    keyGenerator: (req) => {
+        // rate limiting
+        return `${getClientIp(req)}:${req.user?._id?.toString() || "anonymous"}`;
+    },
+});
+
 router.post("/register", authLimiter, authController.createUser)
 router.post("/login", authLimiter, authController.loginUser)
 router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
@@ -85,6 +110,12 @@ router.post("/sessions/logout-current", authorizedMiddleware, authController.log
 router.post("/sessions/revoke-others", authorizedMiddleware, authController.revokeOtherSessions);
 router.delete("/sessions/:sessionId", authorizedMiddleware, authController.revokeSession);
 router.get("/users", authorizedMiddleware, authController.searchUsers);
+router.get("/friends", authorizedMiddleware, friendListLimiter, authController.listFriendOverview);
+router.post("/friends/request", authorizedMiddleware, friendActionLimiter, authController.sendFriendRequest);
+router.post("/friends/request/:requestId/accept", authorizedMiddleware, friendActionLimiter, authController.acceptFriendRequest);
+router.post("/friends/request/:requestId/reject", authorizedMiddleware, friendActionLimiter, authController.rejectFriendRequest);
+router.post("/friends/request/:requestId/cancel", authorizedMiddleware, friendActionLimiter, authController.cancelFriendRequest);
+router.delete("/friends/:friendUserId", authorizedMiddleware, friendActionLimiter, authController.removeFriend);
 router.get("/user/:id", authorizedMiddleware, authController.getCurrentUser);
 router.post("/totp/setup", authorizedMiddleware, authController.setupTotp);
 router.post("/totp/enable", authorizedMiddleware, authController.enableTotp);

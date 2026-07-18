@@ -3,12 +3,16 @@ import { Request, Response } from "express";
 import z from "zod";
 import {
     CreateUserDto,
+    FriendOverviewQueryDto,
+    FriendRequestParamsDto,
     GoogleOAuthExchangeDto,
     LoginUserDto,
+    RemoveFriendParamsDto,
     RefreshSessionDto,
     RequestEmailVerificationDto,
     RequestPasswordResetDto,
     ResetPasswordDto,
+    SendFriendRequestDto,
     VerifyGoogleOAuthTotpDto,
     VerifyLoginTotpDto,
     VerifyTotpDto,
@@ -621,6 +625,169 @@ export class AuthController {
             return res.status(200).json({
                 success: true,
                 message: "Other sessions revoked successfully"
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async listFriendOverview(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedQuery = FriendOverviewQueryDto.safeParse(req.query);
+            if (!parsedQuery.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedQuery.error),
+                });
+            }
+
+            const data = await userService.listFriendOverview(userId, parsedQuery.data);
+            return res.status(200).json({
+                success: true,
+                message: "Friend overview fetched successfully",
+                data,
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async sendFriendRequest(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedBody = SendFriendRequestDto.safeParse(req.body);
+            if (!parsedBody.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedBody.error),
+                });
+            }
+
+            await userService.sendFriendRequest(userId, parsedBody.data);
+            return res.status(201).json({
+                success: true,
+                message: "Friend request sent successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async acceptFriendRequest(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = FriendRequestParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            await userService.acceptFriendRequest(userId, parsedParams.data.requestId);
+            return res.status(200).json({
+                success: true,
+                message: "Friend request accepted successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async rejectFriendRequest(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = FriendRequestParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            await userService.rejectFriendRequest(userId, parsedParams.data.requestId);
+            return res.status(200).json({
+                success: true,
+                message: "Friend request rejected successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async cancelFriendRequest(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = FriendRequestParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            await userService.cancelFriendRequest(userId, parsedParams.data.requestId);
+            return res.status(200).json({
+                success: true,
+                message: "Friend request cancelled successfully",
+            });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async removeFriend(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id?.toString();
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+
+            const parsedParams = RemoveFriendParamsDto.safeParse(req.params);
+            if (!parsedParams.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedParams.error),
+                });
+            }
+
+            await userService.removeFriend(userId, parsedParams.data.friendUserId);
+            return res.status(200).json({
+                success: true,
+                message: "Friend removed successfully",
             });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(

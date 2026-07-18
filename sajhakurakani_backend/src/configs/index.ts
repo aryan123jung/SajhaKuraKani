@@ -71,9 +71,23 @@ export const RESET_PASSWORD_ENFORCE_IP_MATCH: boolean = process.env.RESET_PASSWO
 export const REDIS_URL: string = process.env.REDIS_URL || "";
 export const REDIS_KEY_PREFIX: string = process.env.REDIS_KEY_PREFIX || "sajhakurakani";
 export const TOTP_ISSUER: string = process.env.TOTP_ISSUER || 'SajhaKuraKani';
+export const EMAIL_USER: string = process.env.EMAIL_USER || "";
+export const EMAIL_PASS: string = process.env.EMAIL_PASS || "";
 export const GOOGLE_CLIENT_ID: string = process.env.GOOGLE_CLIENT_ID || '';
 export const GOOGLE_CLIENT_SECRET: string = process.env.GOOGLE_CLIENT_SECRET || '';
 export const GOOGLE_REDIRECT_URI: string = process.env.GOOGLE_REDIRECT_URI || `${CLIENT_URL}/oauth/google/callback`;
+export const FRIEND_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.FRIEND_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const FRIEND_ACTION_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.FRIEND_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    20
+);
+export const FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.FRIEND_LIST_RATE_LIMIT_MAX_REQUESTS,
+    60
+);
 export const POST_MEDIA_MAX_FILE_SIZE_BYTES: number = parseNumber(
     process.env.POST_MEDIA_MAX_FILE_SIZE_BYTES,
     5 * 1024 * 1024
@@ -111,3 +125,43 @@ export const POST_DATA_ENCRYPTION_KEY: string =
     process.env.POST_DATA_ENCRYPTION_KEY || "";
 export const SIPS_PATH: string = process.env.SIPS_PATH || "/usr/bin/sips";
 export const FFMPEG_PATH: string = process.env.FFMPEG_PATH || "ffmpeg";
+export const POST_PROFANITY_BLOCKLIST: string[] = (
+    process.env.POST_PROFANITY_BLOCKLIST || "fuck,shit,bitch,bastard"
+)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const POST_HATE_SPEECH_BLOCKLIST: string[] = (
+    process.env.POST_HATE_SPEECH_BLOCKLIST || "kill yourself,go kill yourself"
+)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const POST_NSFW_BLOCKLIST: string[] = (
+    process.env.POST_NSFW_BLOCKLIST || "porn,porno,nude,sex video"
+)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const POST_BLOCKED_LINK_HOSTS: string[] = (
+    process.env.POST_BLOCKED_LINK_HOSTS || "localhost,127.0.0.1,0.0.0.0"
+)
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const POST_MAX_LINKS_PER_POST: number = parseNumber(
+    process.env.POST_MAX_LINKS_PER_POST,
+    5
+);
+export const POST_DUPLICATE_WINDOW_MS: number = parseNumber(
+    process.env.POST_DUPLICATE_WINDOW_MS,
+    10 * 60 * 1000
+);
+export const POST_REPORT_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.POST_REPORT_RATE_LIMIT_MAX_REQUESTS,
+    10
+);
+export const POST_REPORT_AUTO_RESOLVE_DAYS: number = parseNumber(
+    process.env.POST_REPORT_AUTO_RESOLVE_DAYS,
+    14
+);

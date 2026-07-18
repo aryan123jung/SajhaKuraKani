@@ -25,8 +25,6 @@ export const canViewPost = (
       return false;
     case "friends-only":
       return false;
-    case "community-only":
-      return false;
     default:
       return false;
   }

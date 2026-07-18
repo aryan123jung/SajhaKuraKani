@@ -1,5 +1,6 @@
 import { QueryFilter } from "mongoose";
 import { IPost, PostModel } from "../models/post.model";
+import { POST_DUPLICATE_WINDOW_MS } from "../configs";
 
 export class PostRepository {
   async createPost(postData: Partial<IPost>) {
@@ -36,6 +37,27 @@ export class PostRepository {
 
   async deletePost(postId: string) {
     return PostModel.findByIdAndDelete(postId);
+  }
+
+  async deletePostsByAuthor(authorId: string) {
+    return PostModel.deleteMany({ author: authorId });
+  }
+
+  async listAllPostsByAuthor(authorId: string) {
+    return PostModel.find({ author: authorId }).select("+title +content");
+  }
+
+  async findRecentDuplicateByAuthor(
+    authorId: string,
+    duplicateFingerprint: string
+  ) {
+    const createdAtThreshold = new Date(Date.now() - POST_DUPLICATE_WINDOW_MS);
+
+    return PostModel.findOne({
+      author: authorId,
+      duplicateFingerprint,
+      createdAt: { $gte: createdAtThreshold },
+    }).select("+title +content +duplicateFingerprint");
   }
 
   async listPostsByAuthor(authorId: string, page: number, size: number) {
