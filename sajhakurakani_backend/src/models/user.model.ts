@@ -23,6 +23,9 @@ export interface IUser extends Document {
   resetPasswordTokenHash?: string;
   resetPasswordExpiresAt?: Date;
   friends: mongoose.Types.ObjectId[];
+  blockedUsers: mongoose.Types.ObjectId[];
+  isBanned: boolean;
+  bannedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +73,12 @@ const userMongoSchema = new Schema<IUser>(
       type: [{ type: Schema.Types.ObjectId, ref: "User" }],
       default: [],
     },
+    blockedUsers: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
+    isBanned: { type: Boolean, default: false, index: true },
+    bannedAt: { type: Date, required: false },
   },
   {
     timestamps: true,
@@ -85,6 +94,9 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.oauthSubject;
         delete sanitized.resetPasswordTokenHash;
         delete sanitized.resetPasswordExpiresAt;
+        delete sanitized.blockedUsers;
+        delete sanitized.isBanned;
+        delete sanitized.bannedAt;
         return ret;
       },
     },
@@ -100,6 +112,9 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.oauthSubject;
         delete sanitized.resetPasswordTokenHash;
         delete sanitized.resetPasswordExpiresAt;
+        delete sanitized.blockedUsers;
+        delete sanitized.isBanned;
+        delete sanitized.bannedAt;
         return ret;
       },
     },

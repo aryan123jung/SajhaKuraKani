@@ -138,6 +138,7 @@ export class UserRepository implements IUserRepository{
             role: "user" as any,
             emailVerified: true as any,
             _id: { $ne: currentUserId } as any,
+            isBanned: false as any,
         };
 
         if (search) {

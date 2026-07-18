@@ -142,6 +142,8 @@ const normalizeNamePart = (value: string | undefined, fallback: string) =>
 const randomPassword = () => crypto.randomBytes(24).toString("base64url");
 const createFriendPairKey = (firstUserId: string, secondUserId: string) =>
   [firstUserId, secondUserId].sort().join(":");
+const hasBlockedUser = (owner: Pick<IUser, "blockedUsers">, otherUserId: string) =>
+  (owner.blockedUsers || []).some((blockedUserId) => blockedUserId.toString() === otherUserId);
 const buildGoogleAuthUrl = (state: string) => {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -246,6 +248,17 @@ export class UserService {
         429,
         "Too many outgoing friend requests were sent from this account. Please try again tomorrow."
       );
+    }
+  }
+
+  private assertUserCanParticipateInFriendRequests(user: IUser, userLabel: "sender" | "recipient") {
+    // input validation
+    if (user.role !== "user" || !user.emailVerified || user.isBanned) {
+      if (userLabel === "sender") {
+        throw new HttpError(403, "This account cannot send friend requests");
+      }
+
+      throw new HttpError(404, "User not found");
     }
   }
 
@@ -1014,6 +1027,7 @@ export class UserService {
       _id: { $in: friendIds },
       role: "user",
       emailVerified: true,
+      isBanned: false,
     };
 
     if (searchRegex) {
@@ -1059,6 +1073,7 @@ export class UserService {
       _id: { $nin: Array.from(excludedIds) },
       role: "user",
       emailVerified: true,
+      isBanned: false,
     };
 
     if (searchRegex) {
@@ -1104,7 +1119,18 @@ export class UserService {
       userRepository.getUserById(payload.recipientUserId),
     ]);
 
-    if (!sender || !recipient || recipient.role !== "user" || !recipient.emailVerified) {
+    if (!sender || !recipient) {
+      throw new HttpError(404, "User not found");
+    }
+
+    this.assertUserCanParticipateInFriendRequests(sender, "sender");
+    this.assertUserCanParticipateInFriendRequests(recipient, "recipient");
+
+    // input validation
+    if (
+      hasBlockedUser(recipient, userId) ||
+      hasBlockedUser(sender, recipient._id.toString())
+    ) {
       throw new HttpError(404, "User not found");
     }
 
