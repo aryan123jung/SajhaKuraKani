@@ -161,7 +161,7 @@ export class UserRepository implements IUserRepository{
         const updatedUser = await UserModel.findByIdAndUpdate(
             userId,
             updatedData,
-            {new: true, runValidators: true}
+            { returnDocument: "after", runValidators: true }
         );
         return updatedUser;
     }

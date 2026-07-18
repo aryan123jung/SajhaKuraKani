@@ -37,7 +37,7 @@ export class PasswordResetTokenRepository {
         usedIpHash,
         usedUserAgent,
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 }

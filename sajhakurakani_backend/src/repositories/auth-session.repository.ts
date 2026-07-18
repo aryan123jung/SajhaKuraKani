@@ -50,7 +50,7 @@ export class AuthSessionRepository {
         userAgent,
         lastUsedAt: new Date(),
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 
@@ -66,7 +66,7 @@ export class AuthSessionRepository {
         userAgent,
         lastUsedAt: new Date(),
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 
@@ -77,7 +77,7 @@ export class AuthSessionRepository {
         revokedAt: new Date(),
         revokedReason: reason,
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 

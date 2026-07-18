@@ -40,7 +40,7 @@ export class EmailVerificationTokenRepository {
         usedIpHash,
         usedUserAgent,
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 }
