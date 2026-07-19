@@ -4,6 +4,7 @@ export type ProfileViewUser = {
   _id?: string;
   firstName?: string;
   lastName?: string;
+  username?: string;
   profileUrl?: string | null;
   coverUrl?: string | null;
   createdAt?: string;

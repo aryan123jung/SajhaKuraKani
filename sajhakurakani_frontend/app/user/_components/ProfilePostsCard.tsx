@@ -21,6 +21,7 @@ type ProfilePostsCardProps = {
   fullName: string;
   initials: string;
   posts: ProfilePost[];
+  canManagePosts?: boolean;
 };
 
 export default function ProfilePostsCard({
@@ -29,6 +30,7 @@ export default function ProfilePostsCard({
   fullName,
   initials,
   posts,
+  canManagePosts = true,
 }: ProfilePostsCardProps) {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
@@ -110,54 +112,56 @@ export default function ProfilePostsCard({
                 </div>
               </div>
 
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setOpenMenuPostId((current) =>
-                      current === post.id ? null : post.id
-                    );
-                  }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6f7787] transition hover:bg-[#f6f2ee]"
-                  aria-label="Open post actions"
-                >
-                  ⋮
-                </button>
-
-                {openMenuPostId === post.id ? (
-                  <div
-                    className="absolute right-0 top-11 z-10 min-w-[150px] overflow-hidden rounded-[14px] border border-[#ead8cd] bg-white shadow-[0_16px_30px_rgba(51,33,25,0.12)]"
-                    onClick={(event) => event.stopPropagation()}
+              {canManagePosts ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setOpenMenuPostId((current) =>
+                        current === post.id ? null : post.id
+                      );
+                    }}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6f7787] transition hover:bg-[#f6f2ee]"
+                    aria-label="Open post actions"
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingPostId(post.id);
-                        setOpenMenuPostId(null);
-                      }}
-                      className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#1d243f] transition hover:bg-[#faf6f3]"
+                    ⋮
+                  </button>
+
+                  {openMenuPostId === post.id ? (
+                    <div
+                      className="absolute right-0 top-11 z-10 min-w-[150px] overflow-hidden rounded-[14px] border border-[#ead8cd] bg-white shadow-[0_16px_30px_rgba(51,33,25,0.12)]"
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      Edit post
-                    </button>
-                    <form action={handleDeleteAction}>
-                      <input type="hidden" name="_csrf" value={csrfToken} />
-                      <input type="hidden" name="postId" value={post.id} />
                       <button
-                        type="submit"
-                        disabled={isDeletePending}
-                        className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#b14f3f] transition hover:bg-[#fff1ec]"
+                        type="button"
+                        onClick={() => {
+                          setEditingPostId(post.id);
+                          setOpenMenuPostId(null);
+                        }}
+                        className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#1d243f] transition hover:bg-[#faf6f3]"
                       >
-                        {isDeletePending ? "Deleting..." : "Delete post"}
+                        Edit post
                       </button>
-                    </form>
-                  </div>
-                ) : null}
-              </div>
+                      <form action={handleDeleteAction}>
+                        <input type="hidden" name="_csrf" value={csrfToken} />
+                        <input type="hidden" name="postId" value={post.id} />
+                        <button
+                          type="submit"
+                          disabled={isDeletePending}
+                          className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#b14f3f] transition hover:bg-[#fff1ec]"
+                        >
+                          {isDeletePending ? "Deleting..." : "Delete post"}
+                        </button>
+                      </form>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 
-          {editingPostId === post.id ? (
+          {canManagePosts && editingPostId === post.id ? (
             <form action={handleUpdateAction} className="mt-4 space-y-3 px-4 pb-4">
               <input type="hidden" name="_csrf" value={csrfToken} />
               <input type="hidden" name="postId" value={post.id} />
@@ -238,7 +242,7 @@ export default function ProfilePostsCard({
             commentsAvailable={post.commentsAvailable}
             canComment={post.canComment}
           />
-          {deleteState.message && deleteState.activePostId === post.id ? (
+          {canManagePosts && deleteState.message && deleteState.activePostId === post.id ? (
             <div
               className={`px-4 pb-4 text-[0.82rem] ${
                 deleteState.success ? "text-[#2f8f77]" : "text-[#b14f3f]"
@@ -250,14 +254,16 @@ export default function ProfilePostsCard({
         </article>
       ))}
 
-      <div className="rounded-[18px] border border-[#e6d8d0] bg-white/88 p-4 text-center shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
-        <Link
-          href="/user/home"
-          className="inline-flex rounded-[12px] bg-[#f7f3ef] px-4 py-2.5 text-[0.9rem] font-semibold text-[#556278]"
-        >
-          Return to home feed
-        </Link>
-      </div>
+      {canManagePosts ? (
+        <div className="rounded-[18px] border border-[#e6d8d0] bg-white/88 p-4 text-center shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
+          <Link
+            href="/user/home"
+            className="inline-flex rounded-[12px] bg-[#f7f3ef] px-4 py-2.5 text-[0.9rem] font-semibold text-[#556278]"
+          >
+            Return to home feed
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

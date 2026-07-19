@@ -1,28 +1,11 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/api/auth";
+import { getMessageConversations, type MessageConversationSummary } from "@/lib/api/messages";
 import { getCurrentUserPosts, getPostEngagement, type PostMedia } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
 import HomePostComposer from "../_components/HomePostComposer";
 import PostEngagementPanel from "../_components/PostEngagementPanel";
 import PostMediaGallery from "../_components/PostMediaGallery";
-
-const contacts = [
-  {
-    name: "Riya Sharma",
-    state: "Active now",
-    preview: "Can we review the new home layout later?",
-  },
-  {
-    name: "Sudeep Rai",
-    state: "Replied 5m ago",
-    preview: "Your verification flow looks much cleaner now.",
-  },
-  {
-    name: "Anisha Karki",
-    state: "Ready to connect",
-    preview: "Let me know when the feed is ready for testing.",
-  },
-] as const;
 
 const quickActions = [
   {
@@ -32,6 +15,7 @@ const quickActions = [
 ] as const;
 
 export default async function UserHomePage() {
+  let conversations: MessageConversationSummary[] = [];
   let user = null;
   let posts: Array<{
     id: string;
@@ -50,11 +34,13 @@ export default async function UserHomePage() {
   }> = [];
 
   try {
-    const [userResponse, postsResponse] = await Promise.all([
+    const [userResponse, postsResponse, conversationsResponse] = await Promise.all([
       getCurrentUser(),
       getCurrentUserPosts(),
+      getMessageConversations(undefined, 1, 3),
     ]);
     user = userResponse.data;
+    conversations = conversationsResponse.data;
     const engagementList = await Promise.all(
       postsResponse.data.map((post) => getPostEngagement(post._id))
     );
@@ -114,34 +100,38 @@ export default async function UserHomePage() {
           </div>
 
           <div className="mt-4 space-y-2.5">
-            {contacts.map((contact) => (
-              <Link
-                key={contact.name}
-                href="/user/message"
-                className="block rounded-[14px] border border-[#e9ecef] bg-[#fbfcfd] px-3 py-3 transition hover:bg-white"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-xs font-semibold text-white">
-                    {contact.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[0.92rem] font-semibold text-[#1d243f]">
-                      {contact.name}
-                    </p>
-                    <p className="truncate text-[0.72rem] text-[#7b7580]">
-                      {contact.state}
-                    </p>
+            {conversations.length === 0 ? (
+              <div className="rounded-[14px] border border-[#e9ecef] bg-[#fbfcfd] px-3 py-4 text-[0.82rem] leading-6 text-[#6b7080]">
+                No conversations yet. Open your friends list to start a chat.
+              </div>
+            ) : (
+              conversations.map((conversation) => (
+                <Link
+                  key={conversation.pairKey}
+                  href={`/user/message?friend=${encodeURIComponent(conversation.otherUser.id)}`}
+                  className="block rounded-[14px] border border-[#e9ecef] bg-[#fbfcfd] px-3 py-3 transition hover:bg-white"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                      {`${conversation.otherUser.firstName[0] ?? ""}${conversation.otherUser.lastName[0] ?? ""}`.toUpperCase() ||
+                        conversation.otherUser.username.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[0.92rem] font-semibold text-[#1d243f]">
+                        {conversation.otherUser.firstName} {conversation.otherUser.lastName}
+                      </p>
+                      <p className="truncate text-[0.72rem] text-[#7b7580]">
+                        @{conversation.otherUser.username}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <p className="mt-2.5 line-clamp-2 text-[0.76rem] leading-5 text-[#6b7080]">
-                  {contact.preview}
-                </p>
-              </Link>
-            ))}
+                  <p className="mt-2.5 line-clamp-2 text-[0.76rem] leading-5 text-[#6b7080]">
+                    {conversation.latestMessage.sender === user?._id ? "You: " : ""}
+                    {conversation.latestMessage.content}
+                  </p>
+                </Link>
+              ))
+            )}
           </div>
         </section>
       </aside>

@@ -1,22 +1,30 @@
-import { getCurrentUser } from "@/lib/api/auth";
-import { getCurrentUserPosts, getPostEngagement } from "@/lib/api/posts";
+import { getUserProfileById } from "@/lib/api/auth";
+import { getPostEngagement, getUserPostsByUserId } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
-import ProfileHeroCard from "../_components/ProfileHeroCard";
-import ProfilePostsCard from "../_components/ProfilePostsCard";
-import ProfileSidebarCard from "../_components/ProfileSidebarCard";
-import type { ProfilePost } from "../_components/profileTypes";
+import ProfileHeroCard from "../../_components/ProfileHeroCard";
+import ProfilePostsCard from "../../_components/ProfilePostsCard";
+import ProfileSidebarCard from "../../_components/ProfileSidebarCard";
+import type { ProfilePost } from "../../_components/profileTypes";
 
 const bioText =
   "Building a calmer social identity space focused on trust, safety, and real connections.";
 
-export default async function UserProfilePage() {
+type UserProfileByIdPageProps = {
+  params: Promise<{
+    userId: string;
+  }>;
+};
+
+export default async function UserProfileByIdPage({ params }: UserProfileByIdPageProps) {
+  const { userId } = await params;
+
   let user = null;
   let profilePosts: ProfilePost[] = [];
 
   try {
     const [userResponse, postsResponse] = await Promise.all([
-      getCurrentUser(),
-      getCurrentUserPosts(),
+      getUserProfileById(userId),
+      getUserPostsByUserId(userId),
     ]);
 
     user = userResponse.data;
@@ -49,8 +57,8 @@ export default async function UserProfilePage() {
 
   const csrfToken = await getCsrfToken();
 
-  const fullName = user ? `${user.firstName} ${user.lastName}` : "Secure user";
-  const username = user?.username ? `@${user.username}` : "@sajhakurakani";
+  const fullName = user ? `${user.firstName} ${user.lastName}` : "User profile";
+  const username = user?.username ? `@${user.username}` : "@user";
   const firstName = user?.firstName ?? "there";
   const initials = user
     ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase()
@@ -70,6 +78,7 @@ export default async function UserProfilePage() {
         username={username}
         initials={initials}
         joinedLabel={joinedLabel}
+        showEditButton={false}
       />
 
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -81,7 +90,8 @@ export default async function UserProfilePage() {
             initials={initials}
             profileUrl={user?.profileUrl ?? null}
             bioText={bioText}
-            allowComposer={true}
+            allowComposer={false}
+            messageHref={user ? `/user/message?friend=${encodeURIComponent(user._id)}` : null}
           />
         </aside>
 
@@ -91,7 +101,7 @@ export default async function UserProfilePage() {
           fullName={fullName}
           initials={initials}
           posts={profilePosts}
-          canManagePosts={true}
+          canManagePosts={false}
         />
       </section>
     </div>

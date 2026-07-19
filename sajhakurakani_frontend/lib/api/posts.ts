@@ -113,6 +113,20 @@ export async function getCurrentUserPosts(page = 1, size = 20) {
   }
 }
 
+export async function getUserPostsByUserId(userId: string, page = 1, size = 20) {
+  try {
+    const response = await axiosInstance.get<PaginatedApiResponse<UserPost>>(
+      `/api/posts/user/${encodeURIComponent(userId)}?page=${page}&size=${size}`
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getSafePostErrorMessage(error, "Unable to load this user's posts right now.")
+    );
+  }
+}
+
 export async function getPostEngagement(postId: string) {
   try {
     const response = await axiosInstance.get<ApiResponse<PostEngagementSummary>>(

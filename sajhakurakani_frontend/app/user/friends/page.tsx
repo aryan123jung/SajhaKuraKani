@@ -7,6 +7,8 @@ import {
 } from "@/lib/actions/friends";
 import { type FriendOverview, getFriendOverview } from "@/lib/api/friends";
 import { getCsrfToken } from "@/lib/csrf";
+import Link from "next/link";
+/* eslint-disable @next/next/no-img-element */
 
 type FriendsPageProps = {
   searchParams?: Promise<{
@@ -18,6 +20,17 @@ type FriendsPageProps = {
 
 const sectionCardClass =
   "rounded-[24px] border border-[#edd8cb] bg-white/84 p-5 shadow-[0_18px_42px_rgba(128,84,53,0.07)]";
+
+const formatRequestDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const getUserInitials = (firstName: string, lastName: string, username: string) =>
+  `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() ||
+  username.slice(0, 2).toUpperCase();
 
 export default async function UserFriendsPage({ searchParams }: FriendsPageProps) {
   const params = searchParams ? await searchParams : undefined;
@@ -147,12 +160,28 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
                     key={user.id}
                     className="flex flex-col gap-3 rounded-[16px] border border-[#efe0d6] bg-[#fffaf7] p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div>
-                      <p className="text-[1rem] font-semibold text-[#1d243f]">
-                        {user.firstName} {user.lastName}
-                      </p>
-                      <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{user.username}</p>
-                    </div>
+                    <Link
+                      href={`/user/profile/${user.id}`}
+                      className="flex min-w-0 items-center gap-3"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                        {user.profileUrl ? (
+                          <img
+                            src={user.profileUrl}
+                            alt={`${user.firstName} ${user.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          getUserInitials(user.firstName, user.lastName, user.username)
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[1rem] font-semibold text-[#1d243f]">
+                          {user.firstName} {user.lastName}
+                        </p>
+                        <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{user.username}</p>
+                      </div>
+                    </Link>
 
                     <form action={sendFriendRequestAction}>
                       <input type="hidden" name="_csrf" value={csrfToken} />
@@ -190,24 +219,48 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
                     key={friend.id}
                     className="flex flex-col gap-3 rounded-[16px] border border-[#efe0d6] bg-[#fffaf7] p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div>
-                      <p className="text-[1rem] font-semibold text-[#1d243f]">
-                        {friend.firstName} {friend.lastName}
-                      </p>
-                      <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{friend.username}</p>
-                    </div>
+                    <Link
+                      href={`/user/profile/${friend.id}`}
+                      className="flex min-w-0 items-center gap-3"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                        {friend.profileUrl ? (
+                          <img
+                            src={friend.profileUrl}
+                            alt={`${friend.firstName} ${friend.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          getUserInitials(friend.firstName, friend.lastName, friend.username)
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[1rem] font-semibold text-[#1d243f]">
+                          {friend.firstName} {friend.lastName}
+                        </p>
+                        <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{friend.username}</p>
+                      </div>
+                    </Link>
 
-                    <form action={removeFriendAction}>
-                      <input type="hidden" name="_csrf" value={csrfToken} />
-                      <input type="hidden" name="redirectTo" value={redirectTo} />
-                      <input type="hidden" name="friendUserId" value={friend.id} />
-                      <button
-                        type="submit"
-                        className="rounded-[12px] border border-[#f0c8bb] bg-white px-4 py-2.5 text-[0.88rem] font-semibold text-[#b14f3f] transition hover:bg-[#fff4ef]"
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/user/message?friend=${encodeURIComponent(friend.id)}`}
+                        className="rounded-[12px] border border-[#edd8cb] bg-white px-4 py-2.5 text-[0.88rem] font-semibold text-[#546178] transition hover:bg-[#fff4ef]"
                       >
-                        Remove
-                      </button>
-                    </form>
+                        Message
+                      </Link>
+                      <form action={removeFriendAction}>
+                        <input type="hidden" name="_csrf" value={csrfToken} />
+                        <input type="hidden" name="redirectTo" value={redirectTo} />
+                        <input type="hidden" name="friendUserId" value={friend.id} />
+                        <button
+                          type="submit"
+                          className="rounded-[12px] border border-[#f0c8bb] bg-white px-4 py-2.5 text-[0.88rem] font-semibold text-[#b14f3f] transition hover:bg-[#fff4ef]"
+                        >
+                          Remove
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 ))
               )}
@@ -235,12 +288,37 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
                     key={request.id}
                     className="rounded-[16px] border border-[#efe0d6] bg-[#fffaf7] p-4"
                   >
-                    <p className="text-[1rem] font-semibold text-[#1d243f]">
-                      {request.user.firstName} {request.user.lastName}
-                    </p>
-                    <p className="mt-1 text-[0.84rem] text-[#7b7580]">
-                      @{request.user.username}
-                    </p>
+                    <Link
+                      href={`/user/profile/${request.user.id}`}
+                      className="flex min-w-0 items-center gap-3"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                        {request.user.profileUrl ? (
+                          <img
+                            src={request.user.profileUrl}
+                            alt={`${request.user.firstName} ${request.user.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          getUserInitials(
+                            request.user.firstName,
+                            request.user.lastName,
+                            request.user.username
+                          )
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[1rem] font-semibold text-[#1d243f]">
+                          {request.user.firstName} {request.user.lastName}
+                        </p>
+                        <p className="mt-1 text-[0.84rem] text-[#7b7580]">
+                          @{request.user.username}
+                        </p>
+                        <p className="mt-1 text-[0.74rem] text-[#9a9198]">
+                          Sent {formatRequestDate(request.createdAt)}
+                        </p>
+                      </div>
+                    </Link>
 
                     <div className="mt-3 flex flex-wrap gap-2">
                       <form action={acceptFriendRequestAction}>
@@ -291,12 +369,35 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
                     key={request.id}
                     className="flex flex-col gap-3 rounded-[16px] border border-[#efe0d6] bg-[#fffaf7] p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div>
-                      <p className="text-[1rem] font-semibold text-[#1d243f]">
-                        {request.user.firstName} {request.user.lastName}
-                      </p>
-                      <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{request.user.username}</p>
-                    </div>
+                    <Link
+                      href={`/user/profile/${request.user.id}`}
+                      className="flex min-w-0 items-center gap-3"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-xs font-semibold text-white">
+                        {request.user.profileUrl ? (
+                          <img
+                            src={request.user.profileUrl}
+                            alt={`${request.user.firstName} ${request.user.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          getUserInitials(
+                            request.user.firstName,
+                            request.user.lastName,
+                            request.user.username
+                          )
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[1rem] font-semibold text-[#1d243f]">
+                          {request.user.firstName} {request.user.lastName}
+                        </p>
+                        <p className="mt-1 text-[0.84rem] text-[#7b7580]">@{request.user.username}</p>
+                        <p className="mt-1 text-[0.74rem] text-[#9a9198]">
+                          Sent {formatRequestDate(request.createdAt)}
+                        </p>
+                      </div>
+                    </Link>
 
                     <form action={cancelFriendRequestAction}>
                       <input type="hidden" name="_csrf" value={csrfToken} />

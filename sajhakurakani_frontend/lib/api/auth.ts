@@ -31,12 +31,32 @@ export type AuthUser = {
   updatedAt?: string;
 };
 
+export type SearchableUserProfile = {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profileUrl?: string | null;
+  coverUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type ApiResponse<T> = {
   success: boolean;
   message: string;
   data: T;
   accessToken?: string;
   refreshToken?: string;
+};
+
+type PaginatedApiResponse<T> = ApiResponse<T[]> & {
+  pagination: {
+    page: number;
+    size: number;
+    totalUsers: number;
+    totalPages: number;
+  };
 };
 
 type GoogleLoginUrlData = {
@@ -105,11 +125,20 @@ const getSafeErrorMessage = (
       return "Your two-factor verification session expired. Please sign in again.";
     }
 
-    if (status === 423 || responseMessage.includes("temporarily locked")) {
+    if (
+      status === 423 ||
+      status === 429 ||
+      responseMessage.includes("temporarily locked") ||
+      responseMessage.includes("too many sign-in attempts")
+    ) {
       return "Too many sign-in attempts were made. Please wait a bit and try again.";
     }
 
-    if (status === 401 || responseMessage.includes("invalid email or password")) {
+    if (
+      status === 401 ||
+      responseMessage.includes("invalid email or password") ||
+      responseMessage.includes("the credential you entered is incorrect")
+    ) {
       return "The credential you entered is incorrect.";
     }
 
@@ -499,6 +528,71 @@ export async function getCurrentUser() {
       error instanceof Error
         ? error.message
         : "Unable to load your account right now."
+    );
+  }
+}
+
+export async function getUserProfileById(userId: string) {
+  try {
+    const response = await axiosInstance.get<ApiResponse<SearchableUserProfile>>(
+      `/api/auth/users/${encodeURIComponent(userId)}`
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+
+      if (status === 401) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      if (status === 404) {
+        throw new Error("That profile is no longer available.");
+      }
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to load that profile right now."
+    );
+  }
+}
+
+export async function searchUsers(search?: string, page = 1, size = 10) {
+  try {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    });
+
+    if (search?.trim()) {
+      params.set("search", search.trim());
+    }
+
+    const response = await axiosInstance.get<PaginatedApiResponse<SearchableUserProfile>>(
+      `/api/auth/users?${params.toString()}`
+    );
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+
+      if (status === 401) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      if (status === 429) {
+        throw new Error("Too many search requests were made. Please wait a bit and try again.");
+      }
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to search users right now."
     );
   }
 }

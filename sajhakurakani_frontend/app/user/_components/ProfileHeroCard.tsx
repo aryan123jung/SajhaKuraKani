@@ -10,6 +10,7 @@ type ProfileHeroCardProps = {
   username: string;
   initials: string;
   joinedLabel: string;
+  showEditButton?: boolean;
 };
 
 export default function ProfileHeroCard({
@@ -18,6 +19,7 @@ export default function ProfileHeroCard({
   username,
   initials,
   joinedLabel,
+  showEditButton = true,
 }: ProfileHeroCardProps) {
   return (
     <section className="overflow-hidden rounded-[22px] border border-[#e6d8d0] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.08)]">
@@ -66,14 +68,16 @@ export default function ProfileHeroCard({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-4 py-2.5 text-[0.9rem] font-semibold text-white shadow-[0_10px_22px_rgba(241,111,56,0.18)]"
-            >
-              Edit profile
-            </button>
-          </div>
+          {showEditButton ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-4 py-2.5 text-[0.9rem] font-semibold text-white shadow-[0_10px_22px_rgba(241,111,56,0.18)]"
+              >
+                Edit profile
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-5 border-t border-[#eee3dc] pt-3">
