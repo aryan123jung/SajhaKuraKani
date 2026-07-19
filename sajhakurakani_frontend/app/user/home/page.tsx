@@ -202,46 +202,27 @@ export default async function UserHomePage() {
             posts.map((post) => (
             <article
               key={post.id}
-              className="rounded-[18px] border border-[#edd8cb] bg-white/86 p-4 shadow-[0_12px_28px_rgba(128,84,53,0.05)]"
+              className="overflow-hidden rounded-[18px] border border-[#edd8cb] bg-white/92 shadow-[0_12px_28px_rgba(128,84,53,0.05)]"
             >
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] text-xs font-semibold text-white">
-                  {initials}
-                </span>
-                <div>
-                  <p className="text-[0.92rem] font-semibold text-[#1d243f]">{fullName}</p>
-                  <p className="text-[0.74rem] text-[#7b7580]">{post.meta}</p>
+              <div className="px-4 pt-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] text-xs font-semibold text-white">
+                    {initials}
+                  </span>
+                  <div>
+                    <p className="text-[0.95rem] font-semibold text-[#1d243f]">{fullName}</p>
+                    <p className="text-[0.78rem] text-[#7b7580]">{post.meta} · {post.visibility}</p>
+                  </div>
                 </div>
               </div>
 
-              <p className="mt-4 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[#ef744b]">
-                Personal post
-              </p>
-              <h2 className="mt-2.5 text-[1.65rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+              <h2 className="mt-4 px-4 text-[1.45rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
                 {post.title}
               </h2>
-              <p className="mt-2.5 text-[0.92rem] leading-6 text-[#667086]">
+              <p className="mt-2.5 px-4 text-[0.92rem] leading-6 text-[#667086]">
                 {post.body}
               </p>
-              <PostMediaGallery media={post.media} />
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {[
-                  post.visibility,
-                  `${post.mediaCount} media`,
-                  `${post.likeCount} likes`,
-                  post.commentCount === null
-                    ? "comments locked"
-                    : `${post.commentCount} comments`,
-                ].map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-[#edd8cb] bg-[#fff8f3] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#7b7580]"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              <PostMediaGallery media={post.media} className="mx-0 mt-4" />
 
               <PostEngagementPanel
                 csrfToken={csrfToken}

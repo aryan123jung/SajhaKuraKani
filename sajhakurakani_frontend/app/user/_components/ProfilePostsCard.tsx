@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   deletePostAction,
   updatePostAction,
@@ -31,10 +31,24 @@ export default function ProfilePostsCard({
   posts,
 }: ProfilePostsCardProps) {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [updateState, setUpdateState] = useState(initialUpdatePostActionState);
   const [deleteState, setDeleteState] = useState(initialDeletePostActionState);
   const [isUpdatePending, startUpdateTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
+
+  useEffect(() => {
+    if (!openMenuPostId) {
+      return;
+    }
+
+    const handleClick = () => setOpenMenuPostId(null);
+    window.addEventListener("click", handleClick);
+
+    return () => {
+      window.removeEventListener("click", handleClick);
+    };
+  }, [openMenuPostId]);
 
   const handleUpdateAction = (formData: FormData) => {
     startUpdateTransition(async () => {
@@ -70,32 +84,81 @@ export default function ProfilePostsCard({
       {posts.map((post) => (
         <article
           key={post.id}
-          className="rounded-[18px] border border-[#e6d8d0] bg-white/88 p-4 shadow-[0_14px_32px_rgba(128,84,53,0.06)]"
+          className="overflow-hidden rounded-[18px] border border-[#e6d8d0] bg-white/92 shadow-[0_14px_32px_rgba(128,84,53,0.06)]"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-sm font-semibold text-white">
-              {user?.profileUrl ? (
-                <img
-                  src={user.profileUrl}
-                  alt={fullName}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-            <div>
-              <p className="text-[0.95rem] font-semibold text-[#1d243f]">
-                {fullName}
-              </p>
-              <p className="text-[0.76rem] text-[#798092]">
-                {post.meta} · {post.visibility}
-              </p>
+          <div className="px-4 pt-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-sm font-semibold text-white">
+                  {user?.profileUrl ? (
+                    <img
+                      src={user.profileUrl}
+                      alt={fullName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div>
+                  <p className="text-[1rem] font-semibold text-[#1d243f]">
+                    {fullName}
+                  </p>
+                  <p className="text-[0.82rem] text-[#798092]">
+                    {post.meta} · {post.visibility}
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuPostId((current) =>
+                      current === post.id ? null : post.id
+                    );
+                  }}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6f7787] transition hover:bg-[#f6f2ee]"
+                  aria-label="Open post actions"
+                >
+                  ⋮
+                </button>
+
+                {openMenuPostId === post.id ? (
+                  <div
+                    className="absolute right-0 top-11 z-10 min-w-[150px] overflow-hidden rounded-[14px] border border-[#ead8cd] bg-white shadow-[0_16px_30px_rgba(51,33,25,0.12)]"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPostId(post.id);
+                        setOpenMenuPostId(null);
+                      }}
+                      className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#1d243f] transition hover:bg-[#faf6f3]"
+                    >
+                      Edit post
+                    </button>
+                    <form action={handleDeleteAction}>
+                      <input type="hidden" name="_csrf" value={csrfToken} />
+                      <input type="hidden" name="postId" value={post.id} />
+                      <button
+                        type="submit"
+                        disabled={isDeletePending}
+                        className="block w-full px-4 py-3 text-left text-[0.9rem] font-medium text-[#b14f3f] transition hover:bg-[#fff1ec]"
+                      >
+                        {isDeletePending ? "Deleting..." : "Delete post"}
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
           {editingPostId === post.id ? (
-            <form action={handleUpdateAction} className="mt-4 space-y-3">
+            <form action={handleUpdateAction} className="mt-4 space-y-3 px-4 pb-4">
               <input type="hidden" name="_csrf" value={csrfToken} />
               <input type="hidden" name="postId" value={post.id} />
 
@@ -154,13 +217,13 @@ export default function ProfilePostsCard({
             </form>
           ) : (
             <>
-              <p className="mt-4 text-[1.4rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+              <p className="mt-4 px-4 text-[1.4rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
                 {post.title}
               </p>
-              <p className="mt-2.5 text-[0.94rem] leading-7 text-[#636c7e]">
+              <p className="mt-2.5 px-4 text-[0.94rem] leading-7 text-[#636c7e]">
                 {post.body}
               </p>
-              <PostMediaGallery media={post.media} />
+              <PostMediaGallery media={post.media} className="mx-0 mt-4" />
             </>
           )}
 
@@ -175,35 +238,15 @@ export default function ProfilePostsCard({
             commentsAvailable={post.commentsAvailable}
             canComment={post.canComment}
           />
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#eee3dc] pt-4">
-            <button
-              type="button"
-              onClick={() => setEditingPostId(post.id)}
-              className="rounded-[10px] px-3.5 py-2 text-[0.86rem] font-semibold text-[#6b7282] transition hover:bg-[#f7f3ef]"
+          {deleteState.message && deleteState.activePostId === post.id ? (
+            <div
+              className={`px-4 pb-4 text-[0.82rem] ${
+                deleteState.success ? "text-[#2f8f77]" : "text-[#b14f3f]"
+              }`}
             >
-              Edit
-            </button>
-            <form action={handleDeleteAction}>
-              <input type="hidden" name="_csrf" value={csrfToken} />
-              <input type="hidden" name="postId" value={post.id} />
-              <button
-                type="submit"
-                disabled={isDeletePending}
-                className="rounded-[10px] px-3.5 py-2 text-[0.86rem] font-semibold text-[#b14f3f] transition hover:bg-[#fff1ec]"
-              >
-                {isDeletePending ? "Deleting..." : "Delete"}
-              </button>
-            </form>
-            {deleteState.message && deleteState.activePostId === post.id ? (
-              <span
-                className={`text-[0.82rem] ${
-                  deleteState.success ? "text-[#2f8f77]" : "text-[#b14f3f]"
-                }`}
-              >
-                {deleteState.message}
-              </span>
-            ) : null}
-          </div>
+              {deleteState.message}
+            </div>
+          ) : null}
         </article>
       ))}
 

@@ -4,6 +4,7 @@ import type { PostMedia } from "@/lib/api/posts";
 
 type PostMediaGalleryProps = {
   media: PostMedia[];
+  className?: string;
 };
 
 const resolvePostMediaUrl = (url: string) => {
@@ -14,7 +15,10 @@ const resolvePostMediaUrl = (url: string) => {
   return url;
 };
 
-export default function PostMediaGallery({ media }: PostMediaGalleryProps) {
+export default function PostMediaGallery({
+  media,
+  className,
+}: PostMediaGalleryProps) {
   if (media.length === 0) {
     return null;
   }
@@ -27,20 +31,20 @@ export default function PostMediaGallery({ media }: PostMediaGalleryProps) {
         : "grid-cols-2";
 
   return (
-    <div className={`mt-4 grid gap-3 ${gridClassName}`}>
+    <div className={`mt-4 grid gap-0 ${gridClassName} ${className ?? ""}`}>
       {media.map((item, index) => {
         const resolvedUrl = resolvePostMediaUrl(item.url);
 
         return (
           <div
             key={`${item.url}-${index}`}
-            className="overflow-hidden rounded-[16px] border border-[#ecd8cb] bg-[#f8f3ef]"
+            className="overflow-hidden bg-[#f8f3ef]"
           >
             {item.type === "video" ? (
               <video
                 controls
                 preload="metadata"
-                className="h-full max-h-[420px] w-full bg-black object-cover"
+                className="h-full max-h-[560px] w-full bg-black object-cover"
               >
                 <source src={resolvedUrl} type={item.mimeType} />
               </video>
@@ -48,7 +52,7 @@ export default function PostMediaGallery({ media }: PostMediaGalleryProps) {
               <img
                 src={resolvedUrl}
                 alt="Post media"
-                className="h-full max-h-[420px] w-full object-cover"
+                className="h-full max-h-[560px] w-full object-cover"
               />
             )}
           </div>

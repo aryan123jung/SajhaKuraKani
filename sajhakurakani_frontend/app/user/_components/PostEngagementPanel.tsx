@@ -35,6 +35,34 @@ const getInitials = (comment: PostComment) =>
   comment.author?.username?.slice(0, 2).toUpperCase() ||
   "SK";
 
+const HeartIcon = ({ filled }: { filled: boolean }) => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    className={`h-[1.15rem] w-[1.15rem] ${filled ? "fill-current" : "fill-none"}`}
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 20.5s-7-4.35-9.3-8.4C.74 8.66 2.1 4.5 6.2 4.5c2.26 0 3.58 1.25 4.3 2.39.72-1.14 2.04-2.39 4.3-2.39 4.1 0 5.46 4.16 3.5 7.6-2.3 4.05-9.3 8.4-9.3 8.4Z" />
+  </svg>
+);
+
+const CommentIcon = () => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    className="h-[1.15rem] w-[1.15rem] fill-none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 11.5c0 4.42-4.03 8-9 8-1.2 0-2.35-.2-3.4-.58L4 20l1.36-3.58C4.5 15.04 3 13.37 3 11.5c0-4.42 4.03-8 9-8s9 3.58 9 8Z" />
+  </svg>
+);
+
 export default function PostEngagementPanel({
   csrfToken,
   postId,
@@ -83,13 +111,24 @@ export default function PostEngagementPanel({
 
   const toggleLike = () => {
     setLikeMessage("");
+    const previousLiked = liked;
+    const previousLikeCount = likeCount;
+    const nextLiked = !previousLiked;
+    const nextLikeCount = nextLiked
+      ? previousLikeCount + 1
+      : Math.max(previousLikeCount - 1, 0);
+
+    setLiked(nextLiked);
+    setLikeCount(nextLikeCount);
 
     startLikeTransition(async () => {
-      const result = liked
+      const result = previousLiked
         ? await unlikePostAction(postId)
         : await likePostAction(postId);
 
       if (!result.success) {
+        setLiked(previousLiked);
+        setLikeCount(previousLikeCount);
         setLikeMessage(result.message);
         return;
       }
@@ -143,39 +182,39 @@ export default function PostEngagementPanel({
   };
 
   return (
-    <div className="mt-4 rounded-[16px] border border-[#eee3dc] bg-[#fffdfa] p-4">
-      <div className="flex flex-wrap items-center gap-2.5">
+    <div className="border-t border-[#eee3dc] px-4 py-3">
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={toggleLike}
           disabled={isLikePending}
-          className={`rounded-full px-3.5 py-2 text-[0.84rem] font-semibold transition ${
+          className={`inline-flex items-center justify-center gap-2 rounded-[12px] px-3 py-2.5 text-[0.95rem] font-semibold transition ${
             liked
-              ? "bg-[#ef744b] text-white shadow-[0_8px_18px_rgba(241,111,56,0.16)]"
-              : "border border-[#ead8cd] bg-white text-[#586273] hover:bg-[#fff8f3]"
+              ? "bg-[#fff1ec] text-[#e15e3b]"
+              : "text-[#586273] hover:bg-[#faf6f3]"
           }`}
         >
-          {isLikePending ? "Working..." : liked ? `Liked · ${likeCount}` : `Like · ${likeCount}`}
+          <HeartIcon filled={liked} />
+          <span>{`Like ${likeCount}`}</span>
         </button>
 
         <button
           type="button"
           onClick={openComments}
           disabled={isCommentsPending && !commentsLoaded}
-          className="rounded-full border border-[#ead8cd] bg-white px-3.5 py-2 text-[0.84rem] font-semibold text-[#586273] transition hover:bg-[#fff8f3]"
+          className="inline-flex items-center justify-center gap-2 rounded-[12px] px-3 py-2.5 text-[0.95rem] font-semibold text-[#586273] transition hover:bg-[#faf6f3]"
         >
-          {commentsAvailable
-            ? `Comments · ${commentCount ?? 0}`
-            : "Comments unavailable"}
+          <CommentIcon />
+          <span>{commentsAvailable ? `Comment ${commentCount ?? 0}` : "Comments off"}</span>
         </button>
-
-        {likeMessage ? (
-          <span className="text-[0.8rem] text-[#b14f3f]">{likeMessage}</span>
-        ) : null}
       </div>
 
+      {likeMessage ? (
+        <div className="mt-2 text-[0.8rem] text-[#b14f3f]">{likeMessage}</div>
+      ) : null}
+
       {commentsOpen ? (
-        <div className="mt-4 space-y-3 border-t border-[#f1e6de] pt-4">
+        <div className="mt-3 space-y-3 border-t border-[#f1e6de] pt-3">
           {commentsAvailable ? (
             <>
               <form
@@ -194,12 +233,9 @@ export default function PostEngagementPanel({
                       : "Comments are disabled for this post."
                   }
                   disabled={!canComment || isCommentsPending}
-                  className="w-full rounded-[12px] border border-[#ead8cd] bg-white px-4 py-3 text-[0.9rem] leading-6 text-[#1d243f] outline-none transition focus:border-[#ef744b] disabled:cursor-not-allowed disabled:bg-[#f8f4f1]"
+                  className="w-full rounded-[14px] border border-[#ead8cd] bg-[#fbf8f5] px-4 py-3 text-[0.9rem] leading-6 text-[#1d243f] outline-none transition focus:border-[#ef744b] disabled:cursor-not-allowed disabled:bg-[#f8f4f1]"
                 />
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[0.76rem] leading-5 text-[#8a8791]">
-                    Keep comments respectful. Unsafe text and spam are blocked by the backend.
-                  </p>
+                <div className="flex items-center justify-end gap-3">
                   <button
                     type="submit"
                     disabled={!canComment || isCommentsPending}
@@ -226,7 +262,7 @@ export default function PostEngagementPanel({
 
               <div className="space-y-3">
                 {commentList.length === 0 ? (
-                  <div className="rounded-[12px] border border-[#ead8cd] bg-white px-4 py-3 text-[0.86rem] text-[#667086]">
+                  <div className="rounded-[12px] border border-[#ead8cd] bg-[#fbf8f5] px-4 py-3 text-[0.86rem] text-[#667086]">
                     No comments yet.
                   </div>
                 ) : (
@@ -237,7 +273,7 @@ export default function PostEngagementPanel({
                     return (
                       <div
                         key={comment._id}
-                        className="rounded-[14px] border border-[#ead8cd] bg-white px-4 py-3"
+                        className="rounded-[14px] border border-[#ead8cd] bg-[#fbf8f5] px-4 py-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-2.5">
