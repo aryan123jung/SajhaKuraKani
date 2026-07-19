@@ -49,6 +49,7 @@ import { EmailVerificationTokenRepository } from "../repositories/email-verifica
 import { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository";
 import { LoginDefenseSecurity } from "../security/login-defense.security";
 import { securityStateStore } from "../security/security-state.store";
+import { CallService } from "./call.service";
 import { decryptText, encryptText } from "../utils/crypto.util";
 import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
@@ -58,6 +59,7 @@ const authSessionRepository = new AuthSessionRepository();
 const emailVerificationTokenRepository = new EmailVerificationTokenRepository();
 const passwordResetTokenRepository = new PasswordResetTokenRepository();
 const loginDefenseSecurity = new LoginDefenseSecurity();
+const callService = new CallService();
 const PASSWORD_HASH_ROUNDS = 12;
 const PASSWORD_TOTP_CHALLENGE_EXPIRES_IN = "5m";
 const PASSWORD_TOTP_CHALLENGE_TYPE = "password_login_totp";
@@ -1117,6 +1119,7 @@ export class UserService {
     }
 
     await authSessionRepository.revokeSession(currentSessionId, "user_logout");
+    await callService.terminateCallsForSession(userId, currentSessionId, "logout");
   }
 
   async revokeSessionById(userId: string, sessionId: string, currentSessionId?: string) {
@@ -1130,6 +1133,7 @@ export class UserService {
     }
 
     await authSessionRepository.revokeSession(sessionId, "user_revoked_session");
+    await callService.terminateCallsForSession(userId, sessionId, "session_revoked");
   }
 
   async revokeOtherSessions(userId: string, currentSessionId?: string) {
@@ -1137,11 +1141,20 @@ export class UserService {
       throw new HttpError(400, "Current session could not be identified");
     }
 
+    const activeSessions = await authSessionRepository.listActiveSessionsForUser(userId);
+    const revokedSessionIds = activeSessions
+      .map((session) => session._id.toString())
+      .filter((sessionId) => sessionId !== currentSessionId);
+
     await authSessionRepository.revokeAllSessionsForUser(
       userId,
       "user_revoked_other_sessions",
       currentSessionId
     );
+
+    for (const sessionId of revokedSessionIds) {
+      await callService.terminateCallsForSession(userId, sessionId, "session_revoked");
+    }
   }
 
   async getUserById(userId: string) {
@@ -1580,6 +1593,7 @@ export class UserService {
       targetUserId: blockedUserId,
       ipAddress: requestIp,
     });
+    await callService.terminateCallsBetweenUsers(userId, blockedUserId, "blocked");
   }
 
   async unblockUser(userId: string, blockedUserId: string, requestIp?: string) {

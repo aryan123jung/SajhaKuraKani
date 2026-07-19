@@ -301,6 +301,62 @@ export const MESSAGE_DUPLICATE_WINDOW_MS: number = parseNumber(
     process.env.MESSAGE_DUPLICATE_WINDOW_MS,
     30 * 1000
 );
+export const CALL_INITIATE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.CALL_INITIATE_RATE_LIMIT_WINDOW_MS,
+    60 * 1000
+);
+export const CALL_INITIATE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.CALL_INITIATE_RATE_LIMIT_MAX_REQUESTS,
+    10
+);
+export const CALL_SIGNAL_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.CALL_SIGNAL_RATE_LIMIT_WINDOW_MS,
+    60 * 1000
+);
+export const CALL_SIGNAL_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.CALL_SIGNAL_RATE_LIMIT_MAX_REQUESTS,
+    120
+);
+export const CALL_HISTORY_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.CALL_HISTORY_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const CALL_HISTORY_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.CALL_HISTORY_RATE_LIMIT_MAX_REQUESTS,
+    120
+);
+export const CALL_ACTION_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.CALL_ACTION_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const CALL_ACTION_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.CALL_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    60
+);
+export const CALL_ACCEPT_WINDOW_MS: number = parseNumber(
+    process.env.CALL_ACCEPT_WINDOW_MS,
+    30 * 1000
+);
+export const CALL_UNANSWERED_TIMEOUT_MS: number = parseNumber(
+    process.env.CALL_UNANSWERED_TIMEOUT_MS,
+    60 * 1000
+);
+export const CALL_MAX_CONCURRENT_PER_USER: number = parseNumber(
+    process.env.CALL_MAX_CONCURRENT_PER_USER,
+    1
+);
+export const CALL_PAIR_SPAM_WINDOW_MS: number = parseNumber(
+    process.env.CALL_PAIR_SPAM_WINDOW_MS,
+    60 * 60 * 1000
+);
+export const CALL_PAIR_SPAM_MAX_REQUESTS: number = parseNumber(
+    process.env.CALL_PAIR_SPAM_MAX_REQUESTS,
+    20
+);
+export const CALL_SIGNAL_MAX_PAYLOAD_BYTES: number = parseNumber(
+    process.env.CALL_SIGNAL_MAX_PAYLOAD_BYTES,
+    16 * 1024
+);
 export const POST_REPORT_AUTO_RESOLVE_DAYS: number = parseNumber(
     process.env.POST_REPORT_AUTO_RESOLVE_DAYS,
     14

@@ -11,6 +11,7 @@ import https from "https";
 import { initSocket } from "./realtime/socket";
 import { connectDB } from "./database/mogodb";
 import { startAuditRetentionJob } from "./jobs/audit-retention.job";
+import { startCallTimeoutJob } from "./jobs/call-timeout.job";
 import { securityStateStore } from "./security/security-state.store";
 import fs from "fs";
 import { UserService } from "./services/user.services";
@@ -24,6 +25,7 @@ async function startServer(){
     await connectDB();
     await securityStateStore.warmConnection();
     startAuditRetentionJob();
+    startCallTimeoutJob();
     const emailVerificationBackfill = await userService.backfillEmailVerificationState();
     const securityStateStatus = securityStateStore.getConnectionStatus();
     // https implementation

@@ -3,18 +3,21 @@ import jwt from "jsonwebtoken";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import z from "zod";
 import {
+  CALL_SIGNAL_MAX_PAYLOAD_BYTES,
   CORS_ORIGINS,
   JWT_ALGORITHM,
   JWT_AUDIENCE,
   JWT_ISSUER,
   JWT_PUBLIC_KEY,
 } from "../configs";
+import { CallService, callSignalTypes } from "../services/call.service";
 import { DirectMessageService } from "../services/direct-message.service";
 import { UserRepository } from "../repositories/user.repository";
 
 let io: SocketIOServer | null = null;
 
 const directMessageService = new DirectMessageService();
+const callService = new CallService();
 const userRepository = new UserRepository();
 
 interface AuthTokenPayload extends jwt.JwtPayload {
@@ -47,6 +50,20 @@ type ConversationReadEventPayload = {
   otherUserId: string;
   pairKey: string;
   updatedCount: number;
+};
+
+type CallLifecycleEventPayload = {
+  call: Record<string, unknown>;
+  actorUserId: string;
+  recipientUserId: string;
+};
+
+type CallSignalEventPayload = {
+  callId: string;
+  callerUserId: string;
+  calleeUserId: string;
+  signalType: (typeof callSignalTypes)[number];
+  payload: unknown;
 };
 
 type AuthenticatedSocket = Socket<
@@ -82,6 +99,12 @@ const sendMessageSocketDto = z.object({
 
 const markReadSocketDto = z.object({
   friendUserId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier"),
+});
+
+const callSignalSocketDto = z.object({
+  callId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier"),
+  signalType: z.enum(callSignalTypes),
+  payload: z.unknown(),
 });
 
 const verifySocketAccessToken = async (token: string) => {
@@ -128,6 +151,53 @@ export const emitConversationRead = (payload: ConversationReadEventPayload) => {
   io.to(getUserRoom(payload.readerUserId))
     .to(getUserRoom(payload.otherUserId))
     .emit("chat:conversation-read", payload);
+};
+
+export const emitCallIncoming = (payload: CallLifecycleEventPayload) => {
+  if (!io) {
+    return;
+  }
+
+  io.to(getUserRoom(payload.recipientUserId)).emit("call:incoming", payload);
+  io.to(getUserRoom(payload.actorUserId)).emit("call:outgoing", payload);
+};
+
+export const emitCallAccepted = (payload: CallLifecycleEventPayload) => {
+  if (!io) {
+    return;
+  }
+
+  io.to(getUserRoom(payload.actorUserId))
+    .to(getUserRoom(payload.recipientUserId))
+    .emit("call:accepted", payload);
+};
+
+export const emitCallDeclined = (payload: CallLifecycleEventPayload) => {
+  if (!io) {
+    return;
+  }
+
+  io.to(getUserRoom(payload.actorUserId))
+    .to(getUserRoom(payload.recipientUserId))
+    .emit("call:declined", payload);
+};
+
+export const emitCallEnded = (payload: CallLifecycleEventPayload) => {
+  if (!io) {
+    return;
+  }
+
+  io.to(getUserRoom(payload.actorUserId))
+    .to(getUserRoom(payload.recipientUserId))
+    .emit("call:ended", payload);
+};
+
+export const emitCallSignal = (recipientUserId: string, payload: CallSignalEventPayload) => {
+  if (!io) {
+    return;
+  }
+
+  io.to(getUserRoom(recipientUserId)).emit("call:signal", payload);
 };
 
 export const initSocket = (server: HttpServer): SocketIOServer => {
@@ -232,6 +302,48 @@ export const initSocket = (server: HttpServer): SocketIOServer => {
             success: false,
             message:
               error instanceof Error ? error.message : "Unable to mark conversation as read",
+          });
+        }
+      }
+    });
+
+    authenticatedSocket.on("call:signal", async (payload, acknowledge) => {
+      try {
+        const parsedPayload = callSignalSocketDto.parse(payload);
+        const payloadSize = Buffer.byteLength(
+          JSON.stringify(parsedPayload.payload),
+          "utf8"
+        );
+
+        if (payloadSize > CALL_SIGNAL_MAX_PAYLOAD_BYTES) {
+          throw new Error("Signal payload is too large.");
+        }
+
+        const authorizedSignal = await callService.authorizeSignalRelay({
+          actorUserId: userId,
+          actorSessionId: authenticatedSocket.data.sessionId,
+          callId: parsedPayload.callId,
+          signalType: parsedPayload.signalType,
+          payload: parsedPayload.payload,
+        });
+
+        emitCallSignal(authorizedSignal.recipientUserId, {
+          callId: authorizedSignal.callId,
+          callerUserId: authorizedSignal.callerUserId,
+          calleeUserId: authorizedSignal.calleeUserId,
+          signalType: authorizedSignal.signalType,
+          payload: authorizedSignal.payload,
+        });
+
+        if (typeof acknowledge === "function") {
+          acknowledge({ success: true });
+        }
+      } catch (error) {
+        if (typeof acknowledge === "function") {
+          acknowledge({
+            success: false,
+            message:
+              error instanceof Error ? error.message : "Unable to relay call signal",
           });
         }
       }

@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from "path";
 import authRoutes from './routes/auth.routes';
+import callRoutes from './routes/call.routes';
 import messageRoutes from './routes/message.routes';
 import postRoutes from './routes/post.routes';
 import { HttpError } from './errors/http-error';
@@ -93,6 +94,7 @@ app.use((req: Request, res: Response, next: Function) => {
     next();
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/calls', callRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/posts', postRoutes);
 
