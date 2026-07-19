@@ -43,11 +43,11 @@ export default function TopNavbar({
             >
               <span className="relative flex h-14 w-14 items-center justify-center overflow-visible">
                 <Image
-                  src="/brand/headLOGO.svg"
+                  src="/brand/bodyLOGO.svg"
                   alt="SajhaKuraKani mark"
-                  width={72}
-                  height={72}
-                  className="absolute left-1/2 top-[70%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 scale-[2.5] object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.75)]"
+                  width={100}
+                  height={100}
+                  className="absolute left-1/2 top-[10%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 scale-[3.5] object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.75)]"
                   priority
                 />
               </span>

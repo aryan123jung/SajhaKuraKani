@@ -1,3 +1,5 @@
+import type { PostMedia } from "@/lib/api/posts";
+
 export type ProfileViewUser = {
   _id?: string;
   firstName?: string;
@@ -9,9 +11,16 @@ export type ProfileViewUser = {
 
 export type ProfilePost = {
   id: string;
+  authorId: string;
   title: string;
   body: string;
   meta: string;
   visibility: "public" | "private" | "friends-only";
+  liked: boolean;
+  likeCount: number;
+  commentCount: number | null;
+  commentsAvailable: boolean;
+  canComment: boolean;
+  media: PostMedia[];
   mediaCount: number;
 };

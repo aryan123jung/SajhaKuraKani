@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/api/auth";
+import { getCurrentUserPosts, getPostEngagement, type PostMedia } from "@/lib/api/posts";
+import { getCsrfToken } from "@/lib/csrf";
+import HomePostComposer from "../_components/HomePostComposer";
+import PostEngagementPanel from "../_components/PostEngagementPanel";
+import PostMediaGallery from "../_components/PostMediaGallery";
 
 const contacts = [
   {
@@ -26,30 +31,58 @@ const quickActions = [
   },
 ] as const;
 
-const feedCards = [
-  {
-    eyebrow: "Pinned welcome",
-    title: "Start with a clean, calmer home feed.",
-    body: "This first version keeps the familiar social structure: side rails for context, a centered feed, and quick actions that stay easy to reach.",
-    meta: "Just now",
-  },
-  {
-    eyebrow: "Design update",
-    title: "Your trusted spaces stay focused and personal.",
-    body: "Friends activity, private message prompts, and profile updates can all live in this center column without changing the shell again.",
-    meta: "Design preview",
-  },
-] as const;
-
 export default async function UserHomePage() {
   let user = null;
+  let posts: Array<{
+    id: string;
+    authorId: string;
+    title: string;
+    body: string;
+    meta: string;
+    visibility: "public" | "private" | "friends-only";
+    liked: boolean;
+    likeCount: number;
+    commentCount: number | null;
+    commentsAvailable: boolean;
+    canComment: boolean;
+    media: PostMedia[];
+    mediaCount: number;
+  }> = [];
 
   try {
-    const response = await getCurrentUser();
-    user = response.data;
+    const [userResponse, postsResponse] = await Promise.all([
+      getCurrentUser(),
+      getCurrentUserPosts(),
+    ]);
+    user = userResponse.data;
+    const engagementList = await Promise.all(
+      postsResponse.data.map((post) => getPostEngagement(post._id))
+    );
+    posts = postsResponse.data.map((post, index) => ({
+      id: post._id,
+      authorId: userResponse.data._id,
+      title: post.title?.trim() || "Untitled post",
+      body: post.content?.trim() || "This post does not include any text yet.",
+      meta: new Date(post.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      visibility: post.visibility,
+      liked: engagementList[index]?.data.liked ?? false,
+      likeCount: engagementList[index]?.data.likeCount ?? 0,
+      commentCount: engagementList[index]?.data.commentCount ?? 0,
+      commentsAvailable: engagementList[index]?.data.commentsAvailable ?? false,
+      canComment: engagementList[index]?.data.canComment ?? false,
+      media: post.media,
+      mediaCount: post.media.length,
+    }));
   } catch {
     user = null;
+    posts = [];
   }
+
+  const csrfToken = await getCsrfToken();
 
   const firstName = user?.firstName ?? "there";
   const fullName = user ? `${user.firstName} ${user.lastName}` : "Secure user";
@@ -151,10 +184,24 @@ export default async function UserHomePage() {
           </div>
         </div>
 
+        <HomePostComposer csrfToken={csrfToken} />
+
         <div className="space-y-3">
-          {feedCards.map((card) => (
+          {posts.length === 0 ? (
             <article
-              key={card.title}
+              className="rounded-[18px] border border-[#edd8cb] bg-white/86 p-5 shadow-[0_12px_28px_rgba(128,84,53,0.05)]"
+            >
+              <p className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#1d243f]">
+                No posts yet
+              </p>
+              <p className="mt-2.5 text-[0.92rem] leading-6 text-[#667086]">
+                Your newly published posts will appear here as soon as you share your first secure update.
+              </p>
+            </article>
+          ) : (
+            posts.map((post) => (
+            <article
+              key={post.id}
               className="rounded-[18px] border border-[#edd8cb] bg-white/86 p-4 shadow-[0_12px_28px_rgba(128,84,53,0.05)]"
             >
               <div className="flex items-center gap-2.5">
@@ -163,22 +210,30 @@ export default async function UserHomePage() {
                 </span>
                 <div>
                   <p className="text-[0.92rem] font-semibold text-[#1d243f]">{fullName}</p>
-                  <p className="text-[0.74rem] text-[#7b7580]">{card.meta}</p>
+                  <p className="text-[0.74rem] text-[#7b7580]">{post.meta}</p>
                 </div>
               </div>
 
               <p className="mt-4 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[#ef744b]">
-                {card.eyebrow}
+                Personal post
               </p>
               <h2 className="mt-2.5 text-[1.65rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
-                {card.title}
+                {post.title}
               </h2>
               <p className="mt-2.5 text-[0.92rem] leading-6 text-[#667086]">
-                {card.body}
+                {post.body}
               </p>
+              <PostMediaGallery media={post.media} />
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {["Trusted", "Warm", "Feed layout"].map((tag) => (
+                {[
+                  post.visibility,
+                  `${post.mediaCount} media`,
+                  `${post.likeCount} likes`,
+                  post.commentCount === null
+                    ? "comments locked"
+                    : `${post.commentCount} comments`,
+                ].map((tag) => (
                   <span
                     key={tag}
                     className="rounded-full border border-[#edd8cb] bg-[#fff8f3] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#7b7580]"
@@ -187,8 +242,20 @@ export default async function UserHomePage() {
                   </span>
                 ))}
               </div>
+
+              <PostEngagementPanel
+                csrfToken={csrfToken}
+                postId={post.id}
+                currentUserId={user?._id ?? ""}
+                postOwnerId={post.authorId}
+                initialLiked={post.liked}
+                initialLikeCount={post.likeCount}
+                initialCommentCount={post.commentCount}
+                commentsAvailable={post.commentsAvailable}
+                canComment={post.canComment}
+              />
             </article>
-          ))}
+          )))}
         </div>
       </section>
 

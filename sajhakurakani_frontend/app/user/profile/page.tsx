@@ -1,23 +1,17 @@
 import { getCurrentUser } from "@/lib/api/auth";
-import { getCurrentUserPosts } from "@/lib/api/posts";
+import { getCurrentUserPosts, getPostEngagement } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
 import ProfileHeroCard from "../_components/ProfileHeroCard";
 import ProfilePostsCard from "../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../_components/ProfileSidebarCard";
+import type { ProfilePost } from "../_components/profileTypes";
 
 const bioText =
   "Building a calmer social identity space focused on trust, safety, and real connections.";
 
 export default async function UserProfilePage() {
   let user = null;
-  let profilePosts: Array<{
-    id: string;
-    title: string;
-    body: string;
-    meta: string;
-    visibility: "public" | "private" | "friends-only";
-    mediaCount: number;
-  }> = [];
+  let profilePosts: ProfilePost[] = [];
 
   try {
     const [userResponse, postsResponse] = await Promise.all([
@@ -26,8 +20,12 @@ export default async function UserProfilePage() {
     ]);
 
     user = userResponse.data;
-    profilePosts = postsResponse.data.map((post) => ({
+    const engagementList = await Promise.all(
+      postsResponse.data.map((post) => getPostEngagement(post._id))
+    );
+    profilePosts = postsResponse.data.map((post, index) => ({
       id: post._id,
+      authorId: userResponse.data._id,
       title: post.title?.trim() || "Untitled post",
       body: post.content?.trim() || "This post does not include any text yet.",
       meta: new Date(post.createdAt).toLocaleDateString("en-US", {
@@ -36,6 +34,12 @@ export default async function UserProfilePage() {
         year: "numeric",
       }),
       visibility: post.visibility,
+      liked: engagementList[index]?.data.liked ?? false,
+      likeCount: engagementList[index]?.data.likeCount ?? 0,
+      commentCount: engagementList[index]?.data.commentCount ?? 0,
+      commentsAvailable: engagementList[index]?.data.commentsAvailable ?? false,
+      canComment: engagementList[index]?.data.canComment ?? false,
+      media: post.media,
       mediaCount: post.media.length,
     }));
   } catch {
@@ -71,6 +75,7 @@ export default async function UserProfilePage() {
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <ProfileSidebarCard
+            csrfToken={csrfToken}
             firstName={firstName}
             fullName={fullName}
             initials={initials}

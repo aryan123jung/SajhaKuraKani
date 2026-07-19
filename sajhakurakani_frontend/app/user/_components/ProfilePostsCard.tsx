@@ -7,10 +7,12 @@ import {
   deletePostAction,
   updatePostAction,
 } from "@/lib/actions/posts";
+import PostEngagementPanel from "./PostEngagementPanel";
 import {
   initialDeletePostActionState,
   initialUpdatePostActionState,
 } from "@/lib/actions/post-state";
+import PostMediaGallery from "./PostMediaGallery";
 import { ProfilePost, ProfileViewUser } from "./profileTypes";
 
 type ProfilePostsCardProps = {
@@ -158,22 +160,21 @@ export default function ProfilePostsCard({
               <p className="mt-2.5 text-[0.94rem] leading-7 text-[#636c7e]">
                 {post.body}
               </p>
+              <PostMediaGallery media={post.media} />
             </>
           )}
 
-          <div className="mt-4 overflow-hidden rounded-[14px] bg-[linear-gradient(135deg,#fff1e8_0%,#ffe4d4_28%,#fce7dc_52%,#f4f7ff_100%)] p-5">
-            <div className="flex h-[180px] items-end rounded-[12px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.68),rgba(255,255,255,0.24))] p-4">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#ef744b]">
-                  Post visibility
-                </p>
-                <p className="mt-2 text-[1.3rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
-                  {post.visibility} · {post.mediaCount} media item{post.mediaCount === 1 ? "" : "s"}
-                </p>
-              </div>
-            </div>
-          </div>
-
+          <PostEngagementPanel
+            csrfToken={csrfToken}
+            postId={post.id}
+            currentUserId={user?._id ?? ""}
+            postOwnerId={post.authorId}
+            initialLiked={post.liked}
+            initialLikeCount={post.likeCount}
+            initialCommentCount={post.commentCount}
+            commentsAvailable={post.commentsAvailable}
+            canComment={post.canComment}
+          />
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#eee3dc] pt-4">
             <button
               type="button"
