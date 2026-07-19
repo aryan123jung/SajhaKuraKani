@@ -2,6 +2,7 @@ import {
   AUDIT_LOG_CLEANUP_INTERVAL_HOURS,
   AUDIT_LOG_RETENTION_DAYS,
 } from "../configs";
+import { DirectMessageAuditModel } from "../models/direct-message-audit.model";
 import { FriendRequestAuditModel } from "../models/friend-request-audit.model";
 import { FriendRequestReportModel } from "../models/friend-request-report.model";
 import { PostCommentReportModel } from "../models/post-comment-report.model";
@@ -16,6 +17,7 @@ export const runAuditRetentionCleanup = async () => {
   );
 
   const [
+    directMessageAuditResult,
     friendRequestAuditResult,
     friendRequestReportResult,
     postInteractionAuditResult,
@@ -23,6 +25,9 @@ export const runAuditRetentionCleanup = async () => {
     postReportResult,
   ] =
     await Promise.all([
+      DirectMessageAuditModel.deleteMany({
+        createdAt: { $lt: cutoffDate },
+      }),
       FriendRequestAuditModel.deleteMany({
         createdAt: { $lt: cutoffDate },
       }),
@@ -50,6 +55,7 @@ export const runAuditRetentionCleanup = async () => {
       timestamp: new Date().toISOString(),
       retentionDays: AUDIT_LOG_RETENTION_DAYS,
       deleted: {
+        directMessageAudits: directMessageAuditResult.deletedCount ?? 0,
         friendRequestAudits: friendRequestAuditResult.deletedCount ?? 0,
         friendRequestReports: friendRequestReportResult.deletedCount ?? 0,
         postInteractionAudits: postInteractionAuditResult.deletedCount ?? 0,

@@ -261,6 +261,46 @@ export const LIKE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.LIKE_RATE_LIMIT_MAX_REQUESTS,
     50
 );
+export const MESSAGE_MAX_LENGTH: number = parseNumber(
+    process.env.MESSAGE_MAX_LENGTH,
+    2000
+);
+export const MESSAGE_LIST_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.MESSAGE_LIST_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const MESSAGE_LIST_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.MESSAGE_LIST_RATE_LIMIT_MAX_REQUESTS,
+    120
+);
+export const MESSAGE_SEND_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.MESSAGE_SEND_RATE_LIMIT_WINDOW_MS,
+    60 * 1000
+);
+export const MESSAGE_SEND_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.MESSAGE_SEND_RATE_LIMIT_MAX_REQUESTS,
+    30
+);
+export const MESSAGE_SEND_HOURLY_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.MESSAGE_SEND_HOURLY_RATE_LIMIT_WINDOW_MS,
+    60 * 60 * 1000
+);
+export const MESSAGE_SEND_HOURLY_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.MESSAGE_SEND_HOURLY_RATE_LIMIT_MAX_REQUESTS,
+    300
+);
+export const MESSAGE_READ_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.MESSAGE_READ_RATE_LIMIT_WINDOW_MS,
+    5 * 60 * 1000
+);
+export const MESSAGE_READ_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.MESSAGE_READ_RATE_LIMIT_MAX_REQUESTS,
+    180
+);
+export const MESSAGE_DUPLICATE_WINDOW_MS: number = parseNumber(
+    process.env.MESSAGE_DUPLICATE_WINDOW_MS,
+    30 * 1000
+);
 export const POST_REPORT_AUTO_RESOLVE_DAYS: number = parseNumber(
     process.env.POST_REPORT_AUTO_RESOLVE_DAYS,
     14
