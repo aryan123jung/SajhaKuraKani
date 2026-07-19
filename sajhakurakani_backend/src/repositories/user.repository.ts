@@ -3,6 +3,59 @@ import { IUser, UserModel } from "../models/user.model";
 
 const SENSITIVE_USER_SELECT =
     "+password +failedLoginAttempts +lockUntil +passwordChangedAt +resetPasswordTokenHash +resetPasswordExpiresAt +totpSecretEncrypted +totpTempSecretEncrypted +oauthSubject";
+const SAFE_SEARCH_USER_SELECT =
+    "firstName lastName username profileUrl coverUrl createdAt updatedAt";
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildUserSearchConditions = (search: string) => {
+    const normalizedSearch = search.trim().replace(/\s+/g, " ");
+    const escapedSearch = escapeRegex(normalizedSearch);
+
+    return [
+        { username: { $regex: escapedSearch, $options: "i" } },
+        { firstName: { $regex: escapedSearch, $options: "i" } },
+        { lastName: { $regex: escapedSearch, $options: "i" } },
+        {
+            $expr: {
+                $regexMatch: {
+                    input: {
+                        $trim: {
+                            input: {
+                                $concat: [
+                                    { $ifNull: ["$firstName", ""] },
+                                    " ",
+                                    { $ifNull: ["$lastName", ""] }
+                                ]
+                            }
+                        }
+                    },
+                    regex: escapedSearch,
+                    options: "i"
+                }
+            }
+        },
+        {
+            $expr: {
+                $regexMatch: {
+                    input: {
+                        $trim: {
+                            input: {
+                                $concat: [
+                                    { $ifNull: ["$lastName", ""] },
+                                    " ",
+                                    { $ifNull: ["$firstName", ""] }
+                                ]
+                            }
+                        }
+                    },
+                    regex: escapedSearch,
+                    options: "i"
+                }
+            }
+        }
+    ];
+};
 
 export interface IUserRepository{
     getUserByEmail(email: string, includeSensitive?: boolean): Promise<IUser | null>;
@@ -114,10 +167,8 @@ export class UserRepository implements IUserRepository{
         const filter: QueryFilter<IUser> = {};
         if (search) {
             filter.$or = [
-                { username: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } },
-                { firstName: { $regex: search, $options: 'i' } },
-                { lastName: { $regex: search, $options: 'i' } },
+                ...buildUserSearchConditions(search),
+                { email: { $regex: escapeRegex(search.trim()), $options: 'i' } },
             ];
         }
         const [users, total] = await Promise.all([
@@ -142,17 +193,12 @@ export class UserRepository implements IUserRepository{
         };
 
         if (search) {
-            filter.$or = [
-                { username: { $regex: search, $options: "i" } },
-                { firstName: { $regex: search, $options: "i" } },
-                { lastName: { $regex: search, $options: "i" } },
-                { email: { $regex: search, $options: "i" } }
-            ];
+            filter.$or = buildUserSearchConditions(search);
         }
 
         const [users, total] = await Promise.all([
             UserModel.find(filter)
-                .select("-password")
+                .select(SAFE_SEARCH_USER_SELECT)
                 .skip((page - 1) * size)
                 .limit(size),
             UserModel.countDocuments(filter)

@@ -120,6 +120,59 @@ const sanitizeUser = (user: IUser) => {
 const FRIEND_PROFILE_SELECT =
   "firstName lastName username profileUrl coverUrl createdAt updatedAt";
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildFullNameSearchConditions = (search: string) => {
+  const normalizedSearch = search.trim().replace(/\s+/g, " ");
+  const escapedSearch = escapeRegex(normalizedSearch);
+  const fullNameExpression = {
+    $trim: {
+      input: {
+        $concat: [
+          { $ifNull: ["$firstName", ""] },
+          " ",
+          { $ifNull: ["$lastName", ""] },
+        ],
+      },
+    },
+  };
+  const reversedFullNameExpression = {
+    $trim: {
+      input: {
+        $concat: [
+          { $ifNull: ["$lastName", ""] },
+          " ",
+          { $ifNull: ["$firstName", ""] },
+        ],
+      },
+    },
+  };
+
+  return [
+    { firstName: { $regex: escapedSearch, $options: "i" } },
+    { lastName: { $regex: escapedSearch, $options: "i" } },
+    { username: { $regex: escapedSearch, $options: "i" } },
+    {
+      $expr: {
+        $regexMatch: {
+          input: fullNameExpression,
+          regex: escapedSearch,
+          options: "i",
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: reversedFullNameExpression,
+          regex: escapedSearch,
+          options: "i",
+        },
+      },
+    },
+  ];
+};
+
 const toFriendProfile = (user: Partial<IUser> & { _id: mongoose.Types.ObjectId | string }) => ({
   id: user._id.toString(),
   firstName: user.firstName || "",
@@ -1099,6 +1152,24 @@ export class UserService {
     return sanitizeUser(user);
   }
 
+  async getSearchableUserProfileById(userId: string) {
+    const user = await userRepository.getUserById(userId);
+    if (!user || user.role !== "user" || user.isBanned || !user.emailVerified) {
+      throw new HttpError(404, "User not found");
+    }
+
+    return {
+      _id: user._id.toString(),
+      firstName: user.firstName,
+      lastName: user.lastName,
+      username: user.username,
+      profileUrl: user.profileUrl || null,
+      coverUrl: user.coverUrl || null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
   async searchUsersForUser(currentUserId: string, page?: string, size?: string, search?: string) {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const pageSize = size ? parseInt(size, 10) : 10;
@@ -1128,8 +1199,7 @@ export class UserService {
       throw new HttpError(404, "User not found");
     }
 
-    const trimmedSearch = query.search?.trim();
-    const searchRegex = trimmedSearch ? new RegExp(trimmedSearch, "i") : undefined;
+    const trimmedSearch = query.search?.trim().replace(/\s+/g, " ");
     const friendIds = (user.friends || []).map((friendId) => friendId.toString());
 
     const friendFilter: Record<string, unknown> = {
@@ -1139,12 +1209,8 @@ export class UserService {
       isBanned: false,
     };
 
-    if (searchRegex) {
-      friendFilter.$or = [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { username: searchRegex },
-      ];
+    if (trimmedSearch) {
+      friendFilter.$or = buildFullNameSearchConditions(trimmedSearch);
     }
 
     const friends = friendIds.length
@@ -1185,12 +1251,8 @@ export class UserService {
       isBanned: false,
     };
 
-    if (searchRegex) {
-      discoverFilter.$or = [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { username: searchRegex },
-      ];
+    if (trimmedSearch) {
+      discoverFilter.$or = buildFullNameSearchConditions(trimmedSearch);
     }
 
     const discoverUsers = await UserModel.find(discoverFilter)

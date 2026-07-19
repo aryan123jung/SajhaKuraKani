@@ -127,6 +127,7 @@ router.get(
 )
 
 router.get("/whoami", authorizedMiddleware, authController.getUserById);
+router.get("/users/:id", authorizedMiddleware, userSearchLimiter, authController.getSearchableUserProfile);
 router.get("/sessions", authorizedMiddleware, authController.listSessions);
 router.post("/sessions/logout-current", authorizedMiddleware, authController.logoutCurrentSession);
 router.post("/sessions/revoke-others", authorizedMiddleware, authController.revokeOtherSessions);

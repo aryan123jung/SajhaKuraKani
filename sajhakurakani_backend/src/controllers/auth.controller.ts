@@ -183,6 +183,33 @@ export class AuthController {
         }
     }
 
+    async getSearchableUserProfile(req: Request, res: Response) {
+        try {
+            const currentUserId = req.user?._id?.toString();
+            if (!currentUserId) {
+                return res.status(400).json(
+                    { success: false, message: "User ID not provided" }
+                );
+            }
+
+            const requestedUserId = req.params.id;
+            if (!requestedUserId) {
+                return res.status(400).json(
+                    { success: false, message: "User ID not provided" }
+                );
+            }
+
+            const user = await userService.getSearchableUserProfileById(requestedUserId);
+            return res.status(200).json(
+                { success: true, message: "User fetched successfully", data: user }
+            );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode || 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
     async getUserById(req: Request, res: Response) {
         try {
             const userId = req.user?._id?.toString();
