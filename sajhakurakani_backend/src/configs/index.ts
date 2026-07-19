@@ -217,6 +217,50 @@ export const POST_REPORT_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.POST_REPORT_RATE_LIMIT_MAX_REQUESTS,
     10
 );
+export const COMMENT_WRITE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.COMMENT_WRITE_RATE_LIMIT_WINDOW_MS,
+    60 * 1000
+);
+export const COMMENT_WRITE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.COMMENT_WRITE_RATE_LIMIT_MAX_REQUESTS,
+    20
+);
+export const COMMENT_WRITE_HOURLY_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.COMMENT_WRITE_HOURLY_RATE_LIMIT_WINDOW_MS,
+    60 * 60 * 1000
+);
+export const COMMENT_WRITE_HOURLY_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.COMMENT_WRITE_HOURLY_RATE_LIMIT_MAX_REQUESTS,
+    100
+);
+export const COMMENT_DELETE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.COMMENT_DELETE_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const COMMENT_DELETE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.COMMENT_DELETE_RATE_LIMIT_MAX_REQUESTS,
+    30
+);
+export const COMMENT_REPORT_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.COMMENT_REPORT_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+);
+export const COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS,
+    10
+);
+export const COMMENT_DUPLICATE_WINDOW_MS: number = parseNumber(
+    process.env.COMMENT_DUPLICATE_WINDOW_MS,
+    10 * 60 * 1000
+);
+export const LIKE_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.LIKE_RATE_LIMIT_WINDOW_MS,
+    60 * 1000
+);
+export const LIKE_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.LIKE_RATE_LIMIT_MAX_REQUESTS,
+    50
+);
 export const POST_REPORT_AUTO_RESOLVE_DAYS: number = parseNumber(
     process.env.POST_REPORT_AUTO_RESOLVE_DAYS,
     14

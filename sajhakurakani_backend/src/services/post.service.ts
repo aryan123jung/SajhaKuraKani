@@ -31,10 +31,12 @@ import {
 } from "../utils/post-media-security.util";
 import {
   assertCanManagePost,
-  assertCanViewPost,
-  canViewPost,
 } from "../utils/post-visibility.util";
 import { assertPostLinksAreSafe } from "../utils/post-link-security.util";
+import {
+  assertCanViewPostWithUsers,
+  canViewPostWithUsers,
+} from "../utils/post-social-access.util";
 
 const postRepository = new PostRepository();
 const postReportRepository = new PostReportRepository();
@@ -164,6 +166,11 @@ export class PostService {
       throw new HttpError(404, "Author was not found");
     }
 
+    const requester = await userRepository.getUserById(requesterId);
+    if (!requester) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
     const { posts, total } = await postRepository.listPostsByAuthor(
       authorId,
       page,
@@ -171,16 +178,18 @@ export class PostService {
     );
 
     const visiblePosts = posts.filter((post) =>
-      canViewPost(
-        {
+      canViewPostWithUsers({
+        post: {
           author:
             typeof post.author === "object" && post.author && "_id" in post.author
               ? (post.author._id as IPost["author"])
               : (post.author as IPost["author"]),
           visibility: post.visibility,
         },
-        requesterId
-      )
+        author,
+        requester,
+        requesterId,
+      })
     );
 
     return {
@@ -195,7 +204,25 @@ export class PostService {
       throw new HttpError(404, "Post was not found");
     }
 
-    assertCanViewPost(postForAccess, requesterId);
+    const [requester, author] = await Promise.all([
+      userRepository.getUserById(requesterId),
+      userRepository.getUserById(postForAccess.author.toString()),
+    ]);
+
+    if (!requester) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    if (!author) {
+      throw new HttpError(404, "Post was not found");
+    }
+
+    assertCanViewPostWithUsers({
+      post: postForAccess,
+      author,
+      requester,
+      requesterId,
+    });
 
     const post = await postRepository.getPostById(postId);
     if (!post) {
@@ -345,7 +372,25 @@ export class PostService {
       throw new HttpError(404, "Media file was not found");
     }
 
-    assertCanViewPost(post, requesterId);
+    const [requester, author] = await Promise.all([
+      userRepository.getUserById(requesterId),
+      userRepository.getUserById(post.author.toString()),
+    ]);
+
+    if (!requester) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    if (!author) {
+      throw new HttpError(404, "Media file was not found");
+    }
+
+    assertCanViewPostWithUsers({
+      post,
+      author,
+      requester,
+      requesterId,
+    });
 
     const mediaEntry = post.media.find((media) => media.url === mediaUrl);
     if (!mediaEntry) {
@@ -386,11 +431,29 @@ export class PostService {
       throw new HttpError(404, "Post was not found");
     }
 
+    const [reporter, author] = await Promise.all([
+      userRepository.getUserById(reporterId),
+      userRepository.getUserById(post.author.toString()),
+    ]);
+
+    if (!reporter) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    if (!author) {
+      throw new HttpError(404, "Post was not found");
+    }
+
     if (post.author.toString() === reporterId) {
       throw new HttpError(400, "You cannot report your own post");
     }
 
-    assertCanViewPost(post, reporterId);
+    assertCanViewPostWithUsers({
+      post,
+      author,
+      requester: reporter,
+      requesterId: reporterId,
+    });
 
     const existingOpenReport =
       await postReportRepository.getOpenReportByReporterForPost(reporterId, postId);

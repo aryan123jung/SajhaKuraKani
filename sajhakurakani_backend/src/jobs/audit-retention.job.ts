@@ -4,6 +4,8 @@ import {
 } from "../configs";
 import { FriendRequestAuditModel } from "../models/friend-request-audit.model";
 import { FriendRequestReportModel } from "../models/friend-request-report.model";
+import { PostCommentReportModel } from "../models/post-comment-report.model";
+import { PostInteractionAuditModel } from "../models/post-interaction-audit.model";
 import { PostReportModel } from "../models/post-report.model";
 
 const RETAINED_REPORT_STATUSES = ["reviewed", "resolved", "dismissed"] as const;
@@ -13,12 +15,25 @@ export const runAuditRetentionCleanup = async () => {
     Date.now() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
   );
 
-  const [friendRequestAuditResult, friendRequestReportResult, postReportResult] =
+  const [
+    friendRequestAuditResult,
+    friendRequestReportResult,
+    postInteractionAuditResult,
+    postCommentReportResult,
+    postReportResult,
+  ] =
     await Promise.all([
       FriendRequestAuditModel.deleteMany({
         createdAt: { $lt: cutoffDate },
       }),
       FriendRequestReportModel.deleteMany({
+        status: { $in: RETAINED_REPORT_STATUSES },
+        updatedAt: { $lt: cutoffDate },
+      }),
+      PostInteractionAuditModel.deleteMany({
+        createdAt: { $lt: cutoffDate },
+      }),
+      PostCommentReportModel.deleteMany({
         status: { $in: RETAINED_REPORT_STATUSES },
         updatedAt: { $lt: cutoffDate },
       }),
@@ -37,6 +52,8 @@ export const runAuditRetentionCleanup = async () => {
       deleted: {
         friendRequestAudits: friendRequestAuditResult.deletedCount ?? 0,
         friendRequestReports: friendRequestReportResult.deletedCount ?? 0,
+        postInteractionAudits: postInteractionAuditResult.deletedCount ?? 0,
+        postCommentReports: postCommentReportResult.deletedCount ?? 0,
         postReports: postReportResult.deletedCount ?? 0,
       },
     })

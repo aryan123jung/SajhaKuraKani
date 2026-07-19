@@ -1,11 +1,22 @@
 import { Router } from "express";
 import { PostController } from "../controllers/post.controller";
+import { PostInteractionController } from "../controllers/post-interaction.controller";
 import { PostReportController } from "../controllers/post-report.controller";
 import { authorizedMiddleware } from "../middleware/authorized.middleware";
 import { createRateLimitMiddleware, getClientIp } from "../middleware/rate-limit.middleware";
 import { validateUploadedPostFiles } from "../middleware/post-upload-security.middleware";
 import { uploads } from "../middleware/upload.middleware";
 import {
+  COMMENT_DELETE_RATE_LIMIT_MAX_REQUESTS,
+  COMMENT_DELETE_RATE_LIMIT_WINDOW_MS,
+  COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS,
+  COMMENT_REPORT_RATE_LIMIT_WINDOW_MS,
+  COMMENT_WRITE_HOURLY_RATE_LIMIT_MAX_REQUESTS,
+  COMMENT_WRITE_HOURLY_RATE_LIMIT_WINDOW_MS,
+  COMMENT_WRITE_RATE_LIMIT_MAX_REQUESTS,
+  COMMENT_WRITE_RATE_LIMIT_WINDOW_MS,
+  LIKE_RATE_LIMIT_MAX_REQUESTS,
+  LIKE_RATE_LIMIT_WINDOW_MS,
   POST_DELETE_RATE_LIMIT_MAX_REQUESTS,
   POST_MEDIA_RATE_LIMIT_MAX_REQUESTS,
   POST_READ_RATE_LIMIT_MAX_REQUESTS,
@@ -19,6 +30,7 @@ import {
 const router = Router();
 const postController = new PostController();
 const postReportController = new PostReportController();
+const postInteractionController = new PostInteractionController();
 
 const postWriteLimiter = createRateLimitMiddleware({
   keyPrefix: "post-write",
@@ -73,6 +85,48 @@ const postReportLimiter = createRateLimitMiddleware({
     `${req.user?._id?.toString() ?? "anonymous"}:${getClientIp(req)}:${req.params.postId ?? "unknown"}`,
 });
 
+const commentWritePerMinuteLimiter = createRateLimitMiddleware({
+  keyPrefix: "comment-write-minute",
+  windowMs: COMMENT_WRITE_RATE_LIMIT_WINDOW_MS,
+  maxRequests: COMMENT_WRITE_RATE_LIMIT_MAX_REQUESTS,
+  message: "Too many comments were posted. Please slow down and try again later.",
+  keyGenerator: (req) => req.user?._id?.toString() ?? "anonymous",
+});
+
+const commentWritePerHourLimiter = createRateLimitMiddleware({
+  keyPrefix: "comment-write-hour",
+  windowMs: COMMENT_WRITE_HOURLY_RATE_LIMIT_WINDOW_MS,
+  maxRequests: COMMENT_WRITE_HOURLY_RATE_LIMIT_MAX_REQUESTS,
+  message: "Too many comments were posted from this account. Please try again later.",
+  keyGenerator: (req) => req.user?._id?.toString() ?? "anonymous",
+});
+
+const commentDeleteLimiter = createRateLimitMiddleware({
+  keyPrefix: "comment-delete",
+  windowMs: COMMENT_DELETE_RATE_LIMIT_WINDOW_MS,
+  maxRequests: COMMENT_DELETE_RATE_LIMIT_MAX_REQUESTS,
+  message: "Too many comment deletions were made. Please try again later.",
+  keyGenerator: (req) =>
+    `${req.user?._id?.toString() ?? "anonymous"}:${req.params.commentId ?? "unknown"}`,
+});
+
+const commentReportLimiter = createRateLimitMiddleware({
+  keyPrefix: "comment-report",
+  windowMs: COMMENT_REPORT_RATE_LIMIT_WINDOW_MS,
+  maxRequests: COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS,
+  message: "Too many comment report attempts. Please try again later.",
+  keyGenerator: (req) =>
+    `${req.user?._id?.toString() ?? "anonymous"}:${req.params.commentId ?? "unknown"}`,
+});
+
+const likeLimiter = createRateLimitMiddleware({
+  keyPrefix: "post-like",
+  windowMs: LIKE_RATE_LIMIT_WINDOW_MS,
+  maxRequests: LIKE_RATE_LIMIT_MAX_REQUESTS,
+  message: "Too many like actions were made. Please try again later.",
+  keyGenerator: (req) => req.user?._id?.toString() ?? "anonymous",
+});
+
 router.post(
   "/",
   authorizedMiddleware,
@@ -85,6 +139,50 @@ router.get("/me", authorizedMiddleware, postReadLimiter, postController.getCurre
 router.delete("/me/all", authorizedMiddleware, postDeleteLimiter, postController.deleteAllMyPosts);
 router.get("/user/:userId", authorizedMiddleware, postReadLimiter, postController.getUserPosts);
 router.get("/reports/me", authorizedMiddleware, postReadLimiter, postReportController.getMyReports);
+router.get(
+  "/:postId/comments",
+  authorizedMiddleware,
+  postReadLimiter,
+  postInteractionController.listComments
+);
+router.post(
+  "/:postId/comments",
+  authorizedMiddleware,
+  commentWritePerMinuteLimiter,
+  commentWritePerHourLimiter,
+  postInteractionController.createComment
+);
+router.patch(
+  "/comments/:commentId",
+  authorizedMiddleware,
+  commentWritePerMinuteLimiter,
+  commentWritePerHourLimiter,
+  postInteractionController.updateComment
+);
+router.delete(
+  "/comments/:commentId",
+  authorizedMiddleware,
+  commentDeleteLimiter,
+  postInteractionController.deleteComment
+);
+router.post(
+  "/comments/:commentId/report",
+  authorizedMiddleware,
+  commentReportLimiter,
+  postInteractionController.reportComment
+);
+router.post(
+  "/:postId/likes",
+  authorizedMiddleware,
+  likeLimiter,
+  postInteractionController.likePost
+);
+router.delete(
+  "/:postId/likes",
+  authorizedMiddleware,
+  likeLimiter,
+  postInteractionController.unlikePost
+);
 router.get(
   "/media/:kind/:filename",
   authorizedMiddleware,

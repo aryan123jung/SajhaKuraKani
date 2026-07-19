@@ -88,9 +88,46 @@ export const CreatePostReportDto = z.object({
   ),
 });
 
+export const CommentIdParamsDto = z.object({
+  commentId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid comment identifier"),
+});
+
+export const CreateCommentDto = z.object({
+  content: z.preprocess(
+    normalizeOptionalText,
+    z.string().trim().min(1).max(1000)
+  ),
+});
+
+export const UpdateCommentDto = z.object({
+  content: z.preprocess(
+    normalizeOptionalText,
+    z.string().trim().min(1).max(1000)
+  ),
+});
+
+export const CreateCommentReportDto = z.object({
+  reason: z.enum([
+    "spam",
+    "hate-speech",
+    "harassment",
+    "nsfw",
+    "misinformation",
+    "self-harm",
+    "other",
+  ]),
+  details: z.preprocess(
+    normalizeOptionalText,
+    z.string().trim().max(500).optional()
+  ),
+});
+
 export type CreatePostInput = z.infer<typeof CreatePostDto>;
 export type ListPostsQueryInput = z.infer<typeof ListPostsQueryDto>;
 export type UpdatePostInput = z.infer<typeof UpdatePostDto>;
 export type PostIdParamsInput = z.infer<typeof PostIdParamsDto>;
 export type PostAuthorParamsInput = z.infer<typeof PostAuthorParamsDto>;
 export type PostMediaParamsInput = z.infer<typeof PostMediaParamsDto>;
+export type CommentIdParamsInput = z.infer<typeof CommentIdParamsDto>;
+export type CreateCommentInput = z.infer<typeof CreateCommentDto>;
+export type UpdateCommentInput = z.infer<typeof UpdateCommentDto>;

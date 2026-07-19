@@ -25,7 +25,7 @@ const buildEncryptionKey = () => {
   return createHash("sha256").update(POST_DATA_ENCRYPTION_KEY).digest();
 };
 
-const encryptValue = (value?: string) => {
+export const encryptProtectedText = (value?: string) => {
   if (!value) {
     return undefined;
   }
@@ -39,7 +39,7 @@ const encryptValue = (value?: string) => {
   return `${iv.toString("base64")}.${authTag.toString("base64")}.${ciphertext.toString("base64")}`;
 };
 
-const decryptValue = (value?: string) => {
+export const decryptProtectedText = (value?: string) => {
   if (!value) {
     return undefined;
   }
@@ -84,15 +84,15 @@ export const assertPostContentDoesNotContainSensitiveData = (
 };
 
 export const encryptPostFields = (title?: string, content?: string) => ({
-  titleEncrypted: encryptValue(title),
-  contentEncrypted: encryptValue(content),
+  titleEncrypted: encryptProtectedText(title),
+  contentEncrypted: encryptProtectedText(content),
 });
 
 export const decryptPostFields = (
   post: Pick<IPost, "title" | "content" | "titleEncrypted" | "contentEncrypted">
 ) => ({
-  title: post.title ?? decryptValue(post.titleEncrypted),
-  content: post.content ?? decryptValue(post.contentEncrypted),
+  title: post.title ?? decryptProtectedText(post.titleEncrypted),
+  content: post.content ?? decryptProtectedText(post.contentEncrypted),
 });
 
 export const serializePostForResponse = <T extends IPost>(post: T) => {
