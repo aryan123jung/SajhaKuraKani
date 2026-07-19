@@ -140,6 +140,12 @@ router.delete("/me/all", authorizedMiddleware, postDeleteLimiter, postController
 router.get("/user/:userId", authorizedMiddleware, postReadLimiter, postController.getUserPosts);
 router.get("/reports/me", authorizedMiddleware, postReadLimiter, postReportController.getMyReports);
 router.get(
+  "/:postId/engagement",
+  authorizedMiddleware,
+  postReadLimiter,
+  postInteractionController.getEngagementSummary
+);
+router.get(
   "/:postId/comments",
   authorizedMiddleware,
   postReadLimiter,

@@ -14,6 +14,39 @@ import { PostInteractionService } from "../services/post-interaction.service";
 const postInteractionService = new PostInteractionService();
 
 export class PostInteractionController {
+  async getEngagementSummary(req: Request, res: Response) {
+    try {
+      const requesterId = req.user?._id?.toString();
+      if (!requesterId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const parsedParams = PostIdParamsDto.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedParams.error),
+        });
+      }
+
+      const data = await postInteractionService.getEngagementSummary(
+        requesterId,
+        parsedParams.data.postId
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Post engagement fetched successfully",
+        data,
+      });
+    } catch (error: Error | any) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message || "Internal Server Error",
+      });
+    }
+  }
+
   async listComments(req: Request, res: Response) {
     try {
       const requesterId = req.user?._id?.toString();

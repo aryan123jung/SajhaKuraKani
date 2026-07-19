@@ -25,6 +25,7 @@ import { assertPostLinksAreSafe } from "../utils/post-link-security.util";
 import {
   assertCanCommentOnPostWithUsers,
   assertCanViewCommentsForPost,
+  canViewCommentsForPost,
   assertCanViewPostWithUsers,
   isPostOwnerWithUser,
 } from "../utils/post-social-access.util";
@@ -133,6 +134,40 @@ export class PostInteractionService {
     return {
       comments: comments.map((comment) => serializeCommentForResponse(comment)),
       total,
+    };
+  }
+
+  async getEngagementSummary(requesterId: string, postId: string) {
+    const { post, requester, author } = await this.resolvePostContext(requesterId, postId);
+
+    assertCanViewPostWithUsers({
+      post,
+      author,
+      requester,
+      requesterId,
+    });
+
+    const commentsAvailable = canViewCommentsForPost({
+      post,
+      author,
+      requester,
+      requesterId,
+    });
+
+    const [existingLike, likeCount, commentCount] = await Promise.all([
+      postLikeRepository.getLikeByPostAndUser(postId, requesterId),
+      postLikeRepository.countLikesByPost(postId),
+      commentsAvailable
+        ? postCommentRepository.countCommentsByPost(postId)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      liked: Boolean(existingLike),
+      likeCount,
+      commentCount,
+      commentsAvailable,
+      canComment: commentsAvailable,
     };
   }
 

@@ -46,6 +46,10 @@ export class PostCommentRepository {
     return { comments, total };
   }
 
+  async countCommentsByPost(postId: string) {
+    return PostCommentModel.countDocuments({ post: postId, isDeleted: false });
+  }
+
   async findRecentDuplicateByAuthorOnPost(
     authorId: string,
     postId: string,
