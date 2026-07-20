@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import z from "zod";
 import {
+  AUTH_COOKIE_NAME,
   CALL_SIGNAL_MAX_PAYLOAD_BYTES,
   CORS_ORIGINS,
   JWT_ALGORITHM,
@@ -78,6 +79,37 @@ type AuthenticatedSocket = Socket<
 
 const getUserRoom = (userId: string) => `user:${userId}`;
 
+const parseCookies = (cookieHeader?: string) => {
+  const parsedCookies = new Map<string, string>();
+
+  if (!cookieHeader) {
+    return parsedCookies;
+  }
+
+  for (const segment of cookieHeader.split(";")) {
+    const separatorIndex = segment.indexOf("=");
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const name = segment.slice(0, separatorIndex).trim();
+    const value = segment.slice(separatorIndex + 1).trim();
+
+    if (!name || !value) {
+      continue;
+    }
+
+    try {
+      parsedCookies.set(name, decodeURIComponent(value));
+    } catch {
+      parsedCookies.set(name, value);
+    }
+  }
+
+  return parsedCookies;
+};
+
 const extractSocketToken = (socket: Socket) => {
   const authToken = socket.handshake.auth?.token;
   if (typeof authToken === "string" && authToken.trim()) {
@@ -87,6 +119,17 @@ const extractSocketToken = (socket: Socket) => {
   const authorizationHeader = socket.handshake.headers.authorization;
   if (typeof authorizationHeader === "string" && authorizationHeader.startsWith("Bearer ")) {
     return authorizationHeader.slice("Bearer ".length).trim();
+  }
+
+  const rawCookieHeader = socket.handshake.headers.cookie;
+  const cookieHeader = Array.isArray(rawCookieHeader)
+    ? rawCookieHeader.join("; ")
+    : rawCookieHeader;
+  const cookies = parseCookies(cookieHeader);
+  const cookieToken = cookies.get(AUTH_COOKIE_NAME);
+
+  if (typeof cookieToken === "string" && cookieToken.trim()) {
+    return cookieToken.trim();
   }
 
   return "";

@@ -55,6 +55,8 @@ export const CSRF_COOKIE_NAME: string =
     process.env.CSRF_COOKIE_NAME || "sajhakurakani_csrf_token";
 export const CSRF_HEADER_NAME: string =
     process.env.CSRF_HEADER_NAME || "X-CSRF-Token";
+export const AUTH_COOKIE_NAME: string =
+    process.env.AUTH_COOKIE_NAME || "sajhakurakani_auth_token";
 export const AUTH_MAX_FAILED_ATTEMPTS: number = parseNumber(process.env.AUTH_MAX_FAILED_ATTEMPTS, 5);
 export const AUTH_LOCK_WINDOW_MS: number = parseNumber(process.env.AUTH_LOCK_WINDOW_MS, 15 * 60 * 1000);
 export const GLOBAL_RATE_LIMIT_WINDOW_MS: number = parseNumber(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000);
@@ -80,6 +82,13 @@ export const EMAIL_PASS: string = process.env.EMAIL_PASS || "";
 export const GOOGLE_CLIENT_ID: string = process.env.GOOGLE_CLIENT_ID || '';
 export const GOOGLE_CLIENT_SECRET: string = process.env.GOOGLE_CLIENT_SECRET || '';
 export const GOOGLE_REDIRECT_URI: string = process.env.GOOGLE_REDIRECT_URI || `${CLIENT_URL}/oauth/google/callback`;
+export const TURNSTILE_SECRET_KEY: string = process.env.TURNSTILE_SECRET_KEY || "";
+export const TURNSTILE_VERIFY_URL: string =
+    process.env.TURNSTILE_VERIFY_URL ||
+    "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+export const TURNSTILE_ENABLED: boolean =
+    process.env.TURNSTILE_ENABLED === "true" ||
+    TURNSTILE_SECRET_KEY.length > 0;
 export const FRIEND_RATE_LIMIT_WINDOW_MS: number = parseNumber(
     process.env.FRIEND_RATE_LIMIT_WINDOW_MS,
     15 * 60 * 1000

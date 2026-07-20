@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { purgePostsByAuthor } from "../utils/post-author-cleanup.util";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -120,6 +121,26 @@ const userMongoSchema = new Schema<IUser>(
         return ret;
       },
     },
+  }
+);
+
+userMongoSchema.post("findOneAndDelete", async function (deletedUser: IUser | null) {
+  if (!deletedUser?._id) {
+    return;
+  }
+
+  await purgePostsByAuthor(deletedUser._id.toString());
+});
+
+userMongoSchema.post(
+  "deleteOne",
+  { document: true, query: false },
+  async function () {
+    if (!this?._id) {
+      return;
+    }
+
+    await purgePostsByAuthor(this._id.toString());
   }
 );
 

@@ -183,6 +183,13 @@ const toFriendProfile = (user: Partial<IUser> & { _id: mongoose.Types.ObjectId |
   profileUrl: user.profileUrl || null,
 });
 
+type RelationshipStatus = "none" | "friends" | "incoming_request" | "outgoing_request";
+
+type RelationshipState = {
+  relationshipStatus: RelationshipStatus;
+  pendingRequestId: string | null;
+};
+
 const hashPassword = async (password: string) => {
   return bcryptjs.hash(password, PASSWORD_HASH_ROUNDS);
 };
@@ -242,6 +249,67 @@ const resolveExpiryDate = (expiresIn: string) => {
 export class UserService {
   async backfillEmailVerificationState() {
     return userRepository.backfillEmailVerificationState();
+  }
+
+  private async buildRelationshipStateMap(
+    currentUserId: string,
+    targetUserIds: string[],
+    currentUser?: IUser | null
+  ) {
+    const normalizedTargetIds = Array.from(
+      new Set(targetUserIds.filter((targetId) => targetId && targetId !== currentUserId))
+    );
+    const currentViewer = currentUser ?? (await userRepository.getUserById(currentUserId));
+
+    if (!currentViewer) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const relationshipMap = new Map<string, RelationshipState>();
+    const friendIds = new Set(
+      (currentViewer.friends || []).map((friendId) => friendId.toString())
+    );
+
+    normalizedTargetIds.forEach((targetId) => {
+      relationshipMap.set(targetId, {
+        relationshipStatus: friendIds.has(targetId) ? "friends" : "none",
+        pendingRequestId: null,
+      });
+    });
+
+    const unresolvedTargetIds = normalizedTargetIds.filter((targetId) => !friendIds.has(targetId));
+
+    if (unresolvedTargetIds.length === 0) {
+      return relationshipMap;
+    }
+
+    const pendingRequests = await FriendRequestModel.find({
+      status: "pending",
+      $or: [
+        {
+          sender: currentUserId,
+          recipient: { $in: unresolvedTargetIds },
+        },
+        {
+          recipient: currentUserId,
+          sender: { $in: unresolvedTargetIds },
+        },
+      ],
+    }).select("_id sender recipient");
+
+    pendingRequests.forEach((request) => {
+      const senderId = request.sender.toString();
+      const recipientId = request.recipient.toString();
+      const targetId = senderId === currentUserId ? recipientId : senderId;
+
+      relationshipMap.set(targetId, {
+        relationshipStatus:
+          senderId === currentUserId ? "outgoing_request" : "incoming_request",
+        pendingRequestId: request._id.toString(),
+      });
+    });
+
+    return relationshipMap;
   }
 
   private logSecurityEvent(event: string, details: Record<string, unknown>) {
@@ -1165,11 +1233,34 @@ export class UserService {
     return sanitizeUser(user);
   }
 
-  async getSearchableUserProfileById(userId: string) {
-    const user = await userRepository.getUserById(userId);
+  async getSearchableUserProfileById(currentUserId: string, userId: string) {
+    const [currentUser, user] = await Promise.all([
+      userRepository.getUserById(currentUserId),
+      userRepository.getUserById(userId),
+    ]);
+
+    if (!currentUser) {
+      throw new HttpError(404, "User not found");
+    }
+
     if (!user || user.role !== "user" || user.isBanned || !user.emailVerified) {
       throw new HttpError(404, "User not found");
     }
+
+    const relationshipState =
+      user._id.toString() === currentUserId
+        ? {
+            relationshipStatus: "none" as RelationshipStatus,
+            pendingRequestId: null,
+          }
+        : (await this.buildRelationshipStateMap(
+            currentUserId,
+            [user._id.toString()],
+            currentUser
+          )).get(user._id.toString()) ?? {
+            relationshipStatus: "none" as RelationshipStatus,
+            pendingRequestId: null,
+          };
 
     return {
       _id: user._id.toString(),
@@ -1180,6 +1271,8 @@ export class UserService {
       coverUrl: user.coverUrl || null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      relationshipStatus: relationshipState.relationshipStatus,
+      pendingRequestId: relationshipState.pendingRequestId,
     };
   }
 
@@ -1187,11 +1280,22 @@ export class UserService {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const pageSize = size ? parseInt(size, 10) : 10;
 
+    const currentUser = await userRepository.getUserById(currentUserId);
+    if (!currentUser) {
+      throw new HttpError(404, "User not found");
+    }
+
     const { users, total } = await userRepository.searchUsersForUser(
       currentUserId,
       pageNumber,
       pageSize,
       search?.trim()
+    );
+
+    const relationshipMap = await this.buildRelationshipStateMap(
+      currentUserId,
+      users.map((user) => user._id.toString()),
+      currentUser
     );
 
     const pagination = {
@@ -1201,7 +1305,28 @@ export class UserService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    return { users, pagination };
+    return {
+      users: users.map((user) => {
+        const relationshipState = relationshipMap.get(user._id.toString()) ?? {
+          relationshipStatus: "none" as RelationshipStatus,
+          pendingRequestId: null,
+        };
+
+        return {
+          _id: user._id.toString(),
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          profileUrl: user.profileUrl || null,
+          coverUrl: user.coverUrl || null,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          relationshipStatus: relationshipState.relationshipStatus,
+          pendingRequestId: relationshipState.pendingRequestId,
+        };
+      }),
+      pagination,
+    };
   }
 
   async listFriendOverview(userId: string, query: FriendOverviewQueryDto) {

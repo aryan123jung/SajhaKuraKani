@@ -1,25 +1,77 @@
 import crypto from "crypto";
+import { JWT_PRIVATE_KEY } from "../configs";
 
-type OAuthStateEntry = {
-  expiresAt: number;
+const DEFAULT_STATE_WINDOW_MS = 10 * 60 * 1000;
+const STATE_VERSION = "v1";
+
+const toBase64Url = (value: string) => Buffer.from(value, "utf8").toString("base64url");
+
+const fromBase64Url = (value: string) =>
+  Buffer.from(value, "base64url").toString("utf8");
+
+const getOAuthStateSecret = () => {
+  if (!JWT_PRIVATE_KEY) {
+    throw new Error("JWT private key is not configured.");
+  }
+
+  return JWT_PRIVATE_KEY;
 };
 
-const stateStore = new Map<string, OAuthStateEntry>();
-const DEFAULT_STATE_WINDOW_MS = 10 * 60 * 1000;
+const signStatePayload = (payload: string) =>
+  crypto
+    .createHmac("sha256", getOAuthStateSecret())
+    .update(payload)
+    .digest("base64url");
 
 export const createOAuthState = (windowMs = DEFAULT_STATE_WINDOW_MS) => {
-  const state = crypto.randomBytes(24).toString("hex");
-  stateStore.set(state, { expiresAt: Date.now() + windowMs });
-  return state;
+  const payload = JSON.stringify({
+    v: STATE_VERSION,
+    nonce: crypto.randomBytes(24).toString("hex"),
+    exp: Date.now() + windowMs,
+  });
+  const encodedPayload = toBase64Url(payload);
+  const signature = signStatePayload(encodedPayload);
+
+  return `${encodedPayload}.${signature}`;
 };
 
 export const consumeOAuthState = (state: string) => {
-  const entry = stateStore.get(state);
-  stateStore.delete(state);
+  const [encodedPayload, receivedSignature] = state.split(".");
 
-  if (!entry || entry.expiresAt < Date.now()) {
+  if (!encodedPayload || !receivedSignature) {
     return false;
   }
 
-  return true;
+  try {
+    const expectedSignature = signStatePayload(encodedPayload);
+    const receivedBuffer = Buffer.from(receivedSignature, "base64url");
+    const expectedBuffer = Buffer.from(expectedSignature, "base64url");
+
+    if (
+      receivedBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
+    ) {
+      return false;
+    }
+
+    const payload = JSON.parse(fromBase64Url(encodedPayload)) as {
+      v?: string;
+      exp?: number;
+      nonce?: string;
+    };
+
+    if (
+      payload.v !== STATE_VERSION ||
+      typeof payload.exp !== "number" ||
+      payload.exp < Date.now() ||
+      typeof payload.nonce !== "string" ||
+      payload.nonce.length < 32
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 };

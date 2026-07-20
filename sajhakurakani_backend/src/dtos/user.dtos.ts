@@ -1,6 +1,8 @@
 import z from "zod";
 import { UserSchema, passwordSchema } from "../types/user.type";
 
+const captchaTokenSchema = z.string().trim().min(1).max(4096).optional();
+
 export const CreateUserDto = UserSchema.pick(
     {
         firstName: true,
@@ -18,12 +20,15 @@ export const CreateUserDto = UserSchema.pick(
         message: "Password do not match",
         path: ['confirmPassword']
     }
-)
+).extend({
+    captchaToken: captchaTokenSchema,
+});
 export type CreateUserDto = z.infer<typeof CreateUserDto>;
 
 export const LoginUserDto = z.object({
     email: z.email().trim().toLowerCase(),
     password: z.string().min(1).max(128),
+    captchaToken: captchaTokenSchema,
 });
 export type LoginUserDto = z.infer<typeof LoginUserDto>;
 
@@ -68,6 +73,11 @@ export const GoogleOAuthExchangeDto = z.object({
     state: z.string().min(1),
 });
 export type GoogleOAuthExchangeDto = z.infer<typeof GoogleOAuthExchangeDto>;
+
+export const HumanVerificationDto = z.object({
+    captchaToken: captchaTokenSchema,
+});
+export type HumanVerificationDto = z.infer<typeof HumanVerificationDto>;
 
 export const VerifyGoogleOAuthTotpDto = z.object({
     preAuthToken: z.string().min(1),

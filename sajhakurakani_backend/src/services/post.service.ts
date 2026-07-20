@@ -29,6 +29,7 @@ import {
   PostMediaStorageKind,
   validateStoredPostMedia,
 } from "../utils/post-media-security.util";
+import { purgePostsByAuthor } from "../utils/post-author-cleanup.util";
 import {
   assertCanManagePost,
 } from "../utils/post-visibility.util";
@@ -483,35 +484,6 @@ export class PostService {
   }
 
   async deleteAllPersonalPosts(authorId: string) {
-    const posts = await postRepository.listAllPostsByAuthor(authorId);
-
-    for (const post of posts) {
-      for (const mediaItem of post.media) {
-        try {
-          const mediaUrl = new URL(mediaItem.url, "http://localhost");
-          const segments = mediaUrl.pathname.split("/").filter(Boolean);
-          const kind = segments[3];
-          const filename = segments[4];
-
-          if (
-            (kind === "images" || kind === "videos") &&
-            typeof filename === "string"
-          ) {
-            const filePath = getPostMediaStoragePath(
-              kind as PostMediaStorageKind,
-              filename
-            );
-            fs.unlinkSync(filePath);
-          }
-        } catch {
-          // Best-effort cleanup for bulk deleted post media.
-        }
-      }
-    }
-
-    const deleteResult = await postRepository.deletePostsByAuthor(authorId);
-    return {
-      deletedCount: deleteResult.deletedCount ?? 0,
-    };
+    return purgePostsByAuthor(authorId);
   }
 }

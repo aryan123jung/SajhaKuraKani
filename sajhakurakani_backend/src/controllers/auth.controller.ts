@@ -20,11 +20,14 @@ import {
     VerifyGoogleOAuthTotpDto,
     VerifyLoginTotpDto,
     VerifyTotpDto,
-    UpdateUserDto
+    UpdateUserDto,
+    HumanVerificationDto
 } from "../dtos/user.dtos";
 import { getClientIp } from "../middleware/rate-limit.middleware";
+import { HumanVerificationService } from "../security/human-verification.service";
 
 let userService = new UserService();
+const humanVerificationService = new HumanVerificationService();
 export class AuthController {
     async createUser(req: Request, res: Response) {
         try {
@@ -34,6 +37,10 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
+            await humanVerificationService.assertHumanVerification(
+                parsedData.data.captchaToken,
+                getClientIp(req)
+            );
             const newUser = await userService.registerUser(
                 parsedData.data,
                 req.ip,
@@ -63,6 +70,10 @@ export class AuthController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 )
             }
+            await humanVerificationService.assertHumanVerification(
+                parsedData.data.captchaToken,
+                getClientIp(req)
+            );
             const data = await userService.loginUser(
                 parsedData.data,
                 getClientIp(req),
@@ -199,7 +210,7 @@ export class AuthController {
                 );
             }
 
-            const user = await userService.getSearchableUserProfileById(requestedUserId);
+            const user = await userService.getSearchableUserProfileById(currentUserId, requestedUserId);
             return res.status(200).json(
                 { success: true, message: "User fetched successfully", data: user }
             );
@@ -438,6 +449,16 @@ export class AuthController {
 
     async getGoogleOAuthUrl(req: Request, res: Response) {
         try {
+            const parsedData = HumanVerificationDto.safeParse(req.body ?? {});
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                );
+            }
+            await humanVerificationService.assertHumanVerification(
+                parsedData.data.captchaToken,
+                getClientIp(req)
+            );
             const data = await userService.getGoogleOAuthUrl();
             return res.status(200).json({ success: true, data });
         } catch (error: Error | any) {

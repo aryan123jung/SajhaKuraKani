@@ -113,6 +113,7 @@ router.post("/login", authLimiter, authController.loginUser)
 router.post("/login/verify-totp", authLimiter, authController.verifyLoginTotp)
 router.post("/refresh", sessionLimiter, authController.refreshSession)
 router.get("/oauth/google/url", authLimiter, authController.getGoogleOAuthUrl)
+router.post("/oauth/google/url", authLimiter, authController.getGoogleOAuthUrl)
 router.post("/oauth/google/exchange", authLimiter, authController.exchangeGoogleOAuthCode)
 router.post("/oauth/google/verify-totp", authLimiter, authController.verifyGoogleOAuthTotp)
 router.post(
