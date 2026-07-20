@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useRef,
@@ -178,6 +179,8 @@ export default function MessageWorkspace({
   const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
   const connectRetryRef = useRef(false);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+  const notificationAudioUnlockedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const loadConversationsRef = useRef<() => Promise<void>>(async () => {});
   const loadThreadRef = useRef<(friendUserId: string) => Promise<void>>(async () => {});
@@ -231,6 +234,63 @@ export default function MessageWorkspace({
           preview.includes(normalizedConversationQuery)
         );
       });
+
+  useEffect(() => {
+    const notificationAudio = new Audio("/sounds/notification.mp3");
+    notificationAudio.preload = "auto";
+    notificationAudioRef.current = notificationAudio;
+
+    const unlockNotificationAudio = async () => {
+      if (notificationAudioUnlockedRef.current) {
+        return;
+      }
+
+      try {
+        notificationAudio.muted = true;
+        notificationAudio.volume = 0;
+        await notificationAudio.play();
+        notificationAudio.pause();
+        notificationAudio.currentTime = 0;
+        notificationAudio.muted = false;
+        notificationAudio.volume = 1;
+        notificationAudioUnlockedRef.current = true;
+      } catch {
+        notificationAudio.muted = false;
+        notificationAudio.volume = 1;
+      }
+    };
+
+    const handleUserInteraction = () => {
+      void unlockNotificationAudio();
+    };
+
+    window.addEventListener("pointerdown", handleUserInteraction, { passive: true });
+    window.addEventListener("keydown", handleUserInteraction);
+    window.addEventListener("touchstart", handleUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
+      window.removeEventListener("touchstart", handleUserInteraction);
+      notificationAudio.pause();
+      notificationAudio.currentTime = 0;
+      notificationAudioRef.current = null;
+      notificationAudioUnlockedRef.current = false;
+    };
+  }, []);
+
+  const playNotificationSound = useCallback(() => {
+    const notificationAudio = notificationAudioRef.current;
+
+    if (!notificationAudio) {
+      return;
+    }
+
+    notificationAudio.currentTime = 0;
+    void notificationAudio.play().catch(() => {
+      return;
+    });
+  }, []);
 
   const syncSelectedFriendUrl = (friendUserId: string | null) => {
     if (!friendUserId) {
@@ -558,6 +618,10 @@ export default function MessageWorkspace({
             });
           });
 
+          if (payload.message.sender !== currentUserId) {
+            playNotificationSound();
+          }
+
           if (selectedFriendIdRef.current === otherUserId) {
             setMessages((currentMessages) =>
               mergeMessages(currentMessages, payload.message)
@@ -627,7 +691,7 @@ export default function MessageWorkspace({
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [currentUserId]);
+  }, [currentUserId, playNotificationSound]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -782,7 +846,7 @@ export default function MessageWorkspace({
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start">
       <aside className="rounded-[24px] border border-[#edd8cb] bg-white/88 p-5 shadow-[0_18px_42px_rgba(128,84,53,0.07)]">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#ef744b]">
           Messages
@@ -876,9 +940,9 @@ export default function MessageWorkspace({
         </div>
       </aside>
 
-      <section className="rounded-[24px] border border-[#edd8cb] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.07)]">
+      <section className="min-h-0 rounded-[24px] border border-[#edd8cb] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.07)] xl:h-[calc(100vh-9rem)]">
         {selectedUser ? (
-          <div className="flex h-full min-h-[760px] flex-col">
+          <div className="flex h-full min-h-[760px] flex-col xl:min-h-0">
             <div className="flex items-center justify-between gap-4 border-b border-[#eee3dc] px-5 py-4">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-sm font-semibold text-white">
@@ -926,7 +990,7 @@ export default function MessageWorkspace({
               </div>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,#fffdfa_0%,#fff8f2_100%)] px-5 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,#fffdfa_0%,#fff8f2_100%)] px-5 py-5">
               {isThreadLoading ? (
                 <div className="rounded-[16px] border border-[#efe0d6] bg-white/80 px-4 py-3 text-sm text-[#6b7080]">
                   Loading conversation...

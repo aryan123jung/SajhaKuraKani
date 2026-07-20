@@ -99,6 +99,9 @@ const setVideoElementStream = (
 export default function CallCenter({ currentUser }: CallCenterProps) {
   const socketRef = useRef<Socket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const incomingCallAudioRef = useRef<HTMLAudioElement | null>(null);
+  const outgoingCallAudioRef = useRef<HTMLAudioElement | null>(null);
+  const callAudioUnlockedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -136,6 +139,110 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     setVideoElementStream(remoteVideoRef.current, remoteStream);
   }, [remoteStream]);
 
+  useEffect(() => {
+    const incomingCallAudio = new Audio("/sounds/incoming-call.mp3");
+    incomingCallAudio.preload = "auto";
+    incomingCallAudio.loop = true;
+
+    const outgoingCallAudio = new Audio("/sounds/outgoing-call.mp3");
+    outgoingCallAudio.preload = "auto";
+    outgoingCallAudio.loop = true;
+
+    incomingCallAudioRef.current = incomingCallAudio;
+    outgoingCallAudioRef.current = outgoingCallAudio;
+
+    const unlockCallAudio = async () => {
+      if (callAudioUnlockedRef.current) {
+        return;
+      }
+
+      try {
+        incomingCallAudio.muted = true;
+        incomingCallAudio.volume = 0;
+        await incomingCallAudio.play();
+        incomingCallAudio.pause();
+        incomingCallAudio.currentTime = 0;
+        incomingCallAudio.muted = false;
+        incomingCallAudio.volume = 1;
+
+        outgoingCallAudio.muted = true;
+        outgoingCallAudio.volume = 0;
+        await outgoingCallAudio.play();
+        outgoingCallAudio.pause();
+        outgoingCallAudio.currentTime = 0;
+        outgoingCallAudio.muted = false;
+        outgoingCallAudio.volume = 1;
+
+        callAudioUnlockedRef.current = true;
+      } catch {
+        incomingCallAudio.muted = false;
+        incomingCallAudio.volume = 1;
+        outgoingCallAudio.muted = false;
+        outgoingCallAudio.volume = 1;
+      }
+    };
+
+    const handleUserInteraction = () => {
+      void unlockCallAudio();
+    };
+
+    window.addEventListener("pointerdown", handleUserInteraction, { passive: true });
+    window.addEventListener("keydown", handleUserInteraction);
+    window.addEventListener("touchstart", handleUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
+      window.removeEventListener("touchstart", handleUserInteraction);
+      incomingCallAudio.pause();
+      incomingCallAudio.currentTime = 0;
+      outgoingCallAudio.pause();
+      outgoingCallAudio.currentTime = 0;
+      incomingCallAudioRef.current = null;
+      outgoingCallAudioRef.current = null;
+      callAudioUnlockedRef.current = false;
+    };
+  }, []);
+
+  const stopCallSounds = useCallback(() => {
+    const incomingCallAudio = incomingCallAudioRef.current;
+    const outgoingCallAudio = outgoingCallAudioRef.current;
+
+    if (incomingCallAudio) {
+      incomingCallAudio.pause();
+      incomingCallAudio.currentTime = 0;
+    }
+
+    if (outgoingCallAudio) {
+      outgoingCallAudio.pause();
+      outgoingCallAudio.currentTime = 0;
+    }
+  }, []);
+
+  const playCallSound = useCallback(
+    (type: "incoming" | "outgoing") => {
+      const nextAudio =
+        type === "incoming" ? incomingCallAudioRef.current : outgoingCallAudioRef.current;
+      const otherAudio =
+        type === "incoming" ? outgoingCallAudioRef.current : incomingCallAudioRef.current;
+
+      if (otherAudio) {
+        otherAudio.pause();
+        otherAudio.currentTime = 0;
+      }
+
+      if (!nextAudio) {
+        return;
+      }
+
+      nextAudio.currentTime = 0;
+      void nextAudio.play().catch(() => {
+        return;
+      });
+    },
+    []
+  );
+
   const stopStream = useCallback((stream: MediaStream | null) => {
     stream?.getTracks().forEach((track) => track.stop());
   }, []);
@@ -155,6 +262,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   }, [stopStream]);
 
   const clearCallUi = useCallback((message = "", errorMessage = "") => {
+    stopCallSounds();
     resetPeerState();
     setCurrentCall(null);
     setIncomingCall(null);
@@ -162,7 +270,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     setStatusMessage(message);
     setCallError(errorMessage);
     setIsBusy(false);
-  }, [resetPeerState]);
+  }, [resetPeerState, stopCallSounds]);
 
   const fetchSocketToken = useCallback(async () => {
     const response = await fetch("/api/realtime/socket-auth", {
@@ -700,10 +808,25 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
 
   useEffect(() => {
     return () => {
+      stopCallSounds();
       socketRef.current?.disconnect();
       resetPeerState();
     };
-  }, [resetPeerState]);
+  }, [resetPeerState, stopCallSounds]);
+
+  useEffect(() => {
+    if (callState === "incoming") {
+      playCallSound("incoming");
+      return;
+    }
+
+    if (callState === "outgoing") {
+      playCallSound("outgoing");
+      return;
+    }
+
+    stopCallSounds();
+  }, [callState, playCallSound, stopCallSounds]);
 
   const activeCall = currentCall ?? incomingCall;
   const activeOtherUser = useMemo(() => {
