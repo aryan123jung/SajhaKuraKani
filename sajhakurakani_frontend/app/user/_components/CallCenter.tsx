@@ -84,8 +84,8 @@ const isParticipantProfile = (
 ): user is CallParticipantProfile =>
   Boolean(user && "firstName" in user && "lastName" in user && "username" in user);
 
-const setVideoElementStream = (
-  element: HTMLVideoElement | null,
+const setMediaElementStream = (
+  element: HTMLMediaElement | null,
   stream: MediaStream | null
 ) => {
   if (!element) {
@@ -95,7 +95,67 @@ const setVideoElementStream = (
   if (element.srcObject !== stream) {
     element.srcObject = stream;
   }
+
+  if (stream) {
+    void element.play().catch(() => {
+      return;
+    });
+  }
 };
+
+const PhoneIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M21 16.5v2a2 2 0 0 1-2.2 2 19.7 19.7 0 0 1-8.58-3.06 19.4 19.4 0 0 1-6-6A19.7 19.7 0 0 1 1.16 2.8 2 2 0 0 1 3.15.6h2a2 2 0 0 1 2 1.72l.43 3.02a2 2 0 0 1-.58 1.72l-1.28 1.28a16 16 0 0 0 6 6L13 13a2 2 0 0 1 1.72-.58l3.02.43A2 2 0 0 1 21 16.5Z"
+    />
+  </svg>
+);
+
+const VideoIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5 20 7v10l-5-3.5" />
+    <rect x="3" y="6" width="12" height="12" rx="3" />
+  </svg>
+);
+
+const MicIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21M8.5 21h7" />
+  </svg>
+);
+
+const MicOffIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m3 3 18 18" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.3 9.28V6a2.7 2.7 0 1 1 5.4 0v6a2.48 2.48 0 0 1-.08.62" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.2 7.2a6.92 6.92 0 0 0 4.8 11.96 7 7 0 0 0 5.1-2.18M5 10.5a7 7 0 0 0 2.28 5.14M12 17.5V21M8.5 21h7" />
+  </svg>
+);
+
+const CloseIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6 18 18M18 6 6 18" />
+  </svg>
+);
+
+const PhoneOffIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M21 15.8v2.2a2 2 0 0 1-2.18 2 19.3 19.3 0 0 1-8.4-2.95 18.9 18.9 0 0 1-5.82-5.82A19.3 19.3 0 0 1 1.64 2.8 2 2 0 0 1 3.63.62h2.2a2 2 0 0 1 1.97 1.64l.46 2.75a2 2 0 0 1-.57 1.74L6.1 8.35a15.8 15.8 0 0 0 9.55 9.55l1.6-1.6a2 2 0 0 1 1.74-.57l2.75.46A2 2 0 0 1 21 15.8Z"
+    />
+  </svg>
+);
+
+const AudioWaveIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className}>
+    <path strokeLinecap="round" d="M4 13.5v-3M8 16v-8M12 19V5M16 16v-8M20 13.5v-3" />
+  </svg>
+);
 
 export default function CallCenter({ currentUser }: CallCenterProps) {
   const socketRef = useRef<Socket | null>(null);
@@ -112,6 +172,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   const connectRetryRef = useRef(false);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const [currentCall, setCurrentCall] = useState<CallSession | null>(null);
   const [incomingCall, setIncomingCall] = useState<CallSession | null>(null);
   const [callState, setCallState] = useState<
@@ -123,6 +184,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   const [isBusy, setIsBusy] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
     currentCallRef.current = currentCall;
@@ -133,11 +195,15 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   }, [incomingCall]);
 
   useEffect(() => {
-    setVideoElementStream(localVideoRef.current, localStream);
+    setMediaElementStream(localVideoRef.current, localStream);
   }, [localStream]);
 
   useEffect(() => {
-    setVideoElementStream(remoteVideoRef.current, remoteStream);
+    setMediaElementStream(remoteVideoRef.current, remoteStream);
+  }, [remoteStream]);
+
+  useEffect(() => {
+    setMediaElementStream(remoteAudioRef.current, remoteStream);
   }, [remoteStream]);
 
   useEffect(() => {
@@ -271,6 +337,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     setStatusMessage(message);
     setCallError(errorMessage);
     setIsBusy(false);
+    setIsMuted(false);
   }, [resetPeerState, stopCallSounds]);
 
   const fetchSocketToken = useCallback(async () => {
@@ -843,6 +910,19 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     }
   }, [clearCallUi, isBusy]);
 
+  const toggleMute = useCallback(() => {
+    const activeLocalStream = localStreamRef.current;
+    if (!activeLocalStream) {
+      return;
+    }
+
+    const nextMutedState = !isMuted;
+    activeLocalStream.getAudioTracks().forEach((track) => {
+      track.enabled = !nextMutedState;
+    });
+    setIsMuted(nextMutedState);
+  }, [isMuted]);
+
   useEffect(() => {
     if (!currentUser) {
       return;
@@ -945,6 +1025,8 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
 
   return (
     <>
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
       {statusMessage && !showOverlay ? (
         <div className="fixed bottom-5 right-5 z-[70] max-w-sm rounded-[16px] border border-[#edd8cb] bg-white/96 px-4 py-3 text-sm text-[#546178] shadow-[0_18px_40px_rgba(70,40,20,0.14)]">
           {statusMessage}
@@ -952,25 +1034,39 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
       ) : null}
 
       {showOverlay ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#1d243f]/28 px-4 py-6 backdrop-blur-md">
-          <div className="w-full max-w-4xl overflow-hidden rounded-[28px] border border-[#ead6c8] bg-white shadow-[0_30px_80px_rgba(40,24,15,0.22)]">
-            <div className="flex items-start justify-between gap-4 border-b border-[#efe2d8] px-6 py-5">
-              <div>
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#ef744b]">
+        <div className="fixed inset-0 z-[80] bg-[radial-gradient(circle_at_top,#31406b_0%,#1b2340_35%,#0f172d_100%)]">
+          {isVideoCall && remoteStream ? (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : null}
+
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,11,22,0.28)_0%,rgba(7,11,22,0.12)_32%,rgba(7,11,22,0.45)_100%)]" />
+
+          <div className="relative flex h-full flex-col">
+            <div className="flex items-start justify-between px-6 pb-4 pt-6 sm:px-8">
+              <div className="space-y-3 text-white">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-white/90 backdrop-blur-xl">
+                  {isVideoCall ? <VideoIcon className="h-4 w-4" /> : <PhoneIcon className="h-4 w-4" />}
                   {callState === "incoming"
                     ? "Incoming call"
                     : callState === "outgoing"
                       ? "Calling"
                       : "In call"}
-                </p>
-                <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.05em] text-[#1d243f]">
-                  {getDisplayName(activeOtherUser)}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[#6b7080]">
-                  {callState === "incoming"
-                    ? `${activeCall?.callType === "video" ? "Video" : "Audio"} call request`
-                    : connectionLabel || "Preparing secure connection..."}
-                </p>
+                </div>
+                <div>
+                  <h2 className="text-[2rem] font-semibold tracking-[-0.05em] text-white sm:text-[2.3rem]">
+                    {getDisplayName(activeOtherUser)}
+                  </h2>
+                  <p className="mt-2 text-sm text-white/72 sm:text-base">
+                    {callState === "incoming"
+                      ? `${activeCall?.callType === "video" ? "Video" : "Audio"} call request`
+                      : connectionLabel || "Preparing secure connection..."}
+                  </p>
+                </div>
               </div>
 
               <button
@@ -983,63 +1079,30 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
 
                   void endCurrentCall();
                 }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#ecd7ca] bg-white text-[#6d5b55] shadow-[0_12px_24px_rgba(64,37,24,0.08)] transition hover:bg-[#fff7f1]"
+                className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/14 text-white shadow-[0_18px_44px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:bg-white/22"
                 aria-label="Close call dialog"
               >
-                x
+                <CloseIcon className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="px-6 py-6">
-              {callError ? (
-                <div className="mb-4 rounded-[16px] border border-[#f2c5bb] bg-[#fff1ec] px-4 py-3 text-sm text-[#b14f3f]">
-                  {callError}
-                </div>
-              ) : null}
+            {callError ? (
+              <div className="mx-6 rounded-2xl border border-[#ffb6a8]/35 bg-[#8d2e20]/35 px-4 py-3 text-sm text-white backdrop-blur-xl sm:mx-8">
+                {callError}
+              </div>
+            ) : null}
 
+            <div className="relative flex flex-1 items-center justify-center px-6 py-8 sm:px-8">
               {isVideoCall ? (
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-                  <div className="overflow-hidden rounded-[22px] border border-[#edd8cb] bg-[#11182d]">
-                    {remoteStream ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        className="aspect-video h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex aspect-video items-center justify-center text-sm text-white/75">
-                        Waiting for {activeOtherUser?.firstName ?? "the other person"}&apos;s video...
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="overflow-hidden rounded-[22px] border border-[#edd8cb] bg-[#1d243f]">
-                      {localStream ? (
-                        <video
-                          ref={localVideoRef}
-                          autoPlay
-                          muted
-                          playsInline
-                          className="aspect-[4/5] h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex aspect-[4/5] items-center justify-center text-sm text-white/75">
-                          Preparing your camera...
-                        </div>
-                      )}
+                <>
+                  {!remoteStream ? (
+                    <div className="flex h-full w-full items-center justify-center rounded-[28px] bg-black/22 text-center text-white/78 backdrop-blur-md">
+                      Waiting for {activeOtherUser?.firstName ?? "the other person"}&apos;s video...
                     </div>
+                  ) : null}
 
-                    <div className="rounded-[20px] border border-[#efe2d8] bg-[#fff8f3] px-4 py-4 text-sm text-[#667086]">
-                      Browser media is encrypted with WebRTC during the call.
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-[24px] border border-[#efe2d8] bg-[linear-gradient(180deg,#fffaf6_0%,#fff6ef_100%)] px-6 py-8">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-2xl font-semibold text-white shadow-[0_18px_34px_rgba(29,36,63,0.16)]">
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center text-white">
+                    <div className="mb-4 flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/18 bg-[#131b31]/85 text-3xl font-semibold shadow-[0_24px_60px_rgba(0,0,0,0.28)] backdrop-blur-lg">
                       {activeOtherUser?.profileUrl ? (
                         <img
                           src={activeOtherUser.profileUrl}
@@ -1050,46 +1113,110 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
                         getInitials(activeOtherUser)
                       )}
                     </div>
-                    <p className="mt-5 text-[1.4rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+                    <p className="text-2xl font-semibold tracking-[-0.04em]">
                       {getDisplayName(activeOtherUser)}
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-[#667086]">
-                      {connectionLabel || "Preparing secure audio..."}
+                    <p className="mt-2 text-sm text-white/72">
+                      {connectionLabel || "Connecting..."}
                     </p>
+                  </div>
+
+                  <div className="absolute bottom-8 right-6 w-[160px] overflow-hidden rounded-[22px] border border-white/14 bg-[#11182d]/85 shadow-[0_22px_44px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:right-8 sm:w-[210px]">
+                    {localStream ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="aspect-[4/5] h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex aspect-[4/5] items-center justify-center text-sm text-white/75">
+                        Preparing your camera...
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex w-full max-w-xl flex-col items-center text-center text-white">
+                  <div className="relative mb-8">
+                    <div className="absolute inset-0 scale-[1.35] rounded-full bg-[#4560ff]/18 blur-3xl" />
+                    <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-full border border-white/12 bg-[#18223e]/90 text-[2.7rem] font-semibold shadow-[0_30px_70px_rgba(0,0,0,0.34)]">
+                      {activeOtherUser?.profileUrl ? (
+                        <img
+                          src={activeOtherUser.profileUrl}
+                          alt={getDisplayName(activeOtherUser)}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        getInitials(activeOtherUser)
+                      )}
+                    </div>
+                  </div>
+                  <h3 className="text-[2.2rem] font-semibold tracking-[-0.05em]">
+                    {getDisplayName(activeOtherUser)}
+                  </h3>
+                  <p className="mt-3 text-base text-white/72">
+                    {connectionLabel || "Preparing secure audio..."}
+                  </p>
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white/82 backdrop-blur-xl">
+                    {isMuted ? <MicOffIcon className="h-4 w-4 text-[#ff9c8e]" /> : <AudioWaveIcon className="h-4 w-4" />}
+                    {isMuted ? "Microphone muted" : "Audio connected securely"}
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#efe2d8] px-6 py-5">
+            <div className="flex items-center justify-center px-6 pb-8 pt-4 sm:px-8">
               {callState === "incoming" ? (
-                <>
+                <div className="flex flex-wrap items-center justify-center gap-4">
                   <button
                     type="button"
                     onClick={() => void declineIncomingCall()}
                     disabled={isBusy}
-                    className="rounded-full border border-[#e5c7ba] bg-white px-5 py-3 text-sm font-semibold text-[#6c5f5c] transition hover:bg-[#fff8f3] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#ed4956] text-white shadow-[0_22px_46px_rgba(237,73,86,0.34)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label="Decline call"
                   >
-                    Decline
+                    <PhoneOffIcon className="h-6 w-6 -rotate-[135deg]" />
                   </button>
                   <button
                     type="button"
                     onClick={() => void acceptIncomingCall()}
                     disabled={isBusy}
-                    className="rounded-full bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(241,111,56,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#31a24c] text-white shadow-[0_22px_46px_rgba(49,162,76,0.34)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label={`Accept ${activeCall?.callType === "video" ? "video" : "audio"} call`}
                   >
-                    Accept {activeCall?.callType === "video" ? "video" : "audio"} call
+                    {activeCall?.callType === "video" ? <VideoIcon className="h-6 w-6" /> : <PhoneIcon className="h-6 w-6" />}
                   </button>
-                </>
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => void endCurrentCall()}
-                  disabled={isBusy}
-                  className="rounded-full bg-[#1d243f] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2b3357] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  End call
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    disabled={isBusy || !localStream}
+                    className={`inline-flex h-15 min-w-[64px] items-center justify-center rounded-full px-5 text-sm font-semibold shadow-[0_22px_46px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isMuted
+                        ? "bg-[#4a566f] text-white"
+                        : "bg-white/16 text-white"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {isMuted ? <MicOffIcon className="h-5 w-5" /> : <MicIcon className="h-5 w-5" />}
+                      <span className="hidden sm:inline">{isMuted ? "Unmute" : "Mute"}</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void endCurrentCall()}
+                    disabled={isBusy}
+                    className="inline-flex h-16 min-w-[148px] items-center justify-center gap-2 rounded-full bg-[#ed4956] px-6 text-sm font-semibold text-white shadow-[0_22px_46px_rgba(237,73,86,0.34)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <PhoneOffIcon className="h-5 w-5 -rotate-[135deg]" />
+                    End call
+                  </button>
+                </div>
               )}
             </div>
           </div>

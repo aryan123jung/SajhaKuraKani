@@ -83,7 +83,15 @@ const getSafeMessageError = (
   }
 
   if (status === 429) {
-    return "Too many message actions were made. Please wait a bit and try again.";
+    if (context === "send") {
+      return "You are sending messages too quickly. Please wait a moment and try again.";
+    }
+
+    if (context === "read") {
+      return "Message read updates are happening too quickly right now. Please wait a moment and try again.";
+    }
+
+    return "Chat is refreshing too quickly right now. Please wait a moment and try again.";
   }
 
   return fallback;
