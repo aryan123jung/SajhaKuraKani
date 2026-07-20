@@ -42,6 +42,7 @@ declare global {
 }
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost:5050";
+const ACTIVE_CALL_SYNC_INTERVAL_MS = 3000;
 const ICE_SERVERS: RTCIceServer[] = [
   {
     urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
@@ -475,6 +476,83 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     [flushPendingIceCandidates]
   );
 
+  const syncActiveCall = useCallback(async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/calls/active", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: CallSession | null;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || "Unable to load the active call right now.");
+      }
+
+      const syncedCall = payload.data ?? null;
+
+      if (!syncedCall) {
+        if (
+          currentCallRef.current &&
+          currentCallRef.current.status !== "ended" &&
+          currentCallRef.current.status !== "declined" &&
+          currentCallRef.current.status !== "missed" &&
+          currentCallRef.current.status !== "cancelled"
+        ) {
+          clearCallUi("The call has ended.");
+        }
+        return;
+      }
+
+      const alreadyTrackingCall =
+        currentCallRef.current?._id === syncedCall._id ||
+        incomingCallRef.current?._id === syncedCall._id;
+
+      if (alreadyTrackingCall) {
+        return;
+      }
+
+      if (syncedCall.status === "ringing") {
+        if (syncedCall.isCaller) {
+          setCurrentCall(syncedCall);
+          setIncomingCall(null);
+          setCallState("outgoing");
+          setConnectionLabel("Ringing...");
+        } else {
+          setIncomingCall(syncedCall);
+          setCurrentCall(null);
+          setCallState("incoming");
+          setStatusMessage("");
+          setCallError("");
+        }
+        return;
+      }
+
+      if (syncedCall.status === "active") {
+        setCurrentCall(syncedCall);
+        setIncomingCall(null);
+        setCallState("connecting");
+        setConnectionLabel("Rejoining active call...");
+      }
+    } catch (error) {
+      if (!currentCallRef.current && !incomingCallRef.current) {
+        setCallError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load the active call right now."
+        );
+      }
+    }
+  }, [clearCallUi, currentUser]);
+
   const ensureSocketConnected = useCallback(async () => {
     const token = await fetchSocketToken();
 
@@ -497,6 +575,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     socket.on("connect", () => {
       connectRetryRef.current = false;
       setCallError("");
+      void syncActiveCall();
     });
 
     socket.on("connect_error", async () => {
@@ -584,7 +663,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
     socketRef.current = socket;
     socket.connect();
     return socket;
-  }, [clearCallUi, fetchSocketToken, handleSignalEvent]);
+  }, [clearCallUi, fetchSocketToken, handleSignalEvent, syncActiveCall]);
 
   const startOutgoingCall = useCallback(
     async (detail: StartCallEventDetail) => {
@@ -779,12 +858,32 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
       void startOutgoingCall(event.detail);
     };
 
+    void syncActiveCall();
+
     window.addEventListener("sajha-call:start", handleStartCall);
 
     return () => {
       window.removeEventListener("sajha-call:start", handleStartCall);
     };
-  }, [currentUser, ensureSocketConnected, startOutgoingCall]);
+  }, [currentUser, ensureSocketConnected, startOutgoingCall, syncActiveCall]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      void syncActiveCall();
+    }, ACTIVE_CALL_SYNC_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [currentUser, syncActiveCall]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {

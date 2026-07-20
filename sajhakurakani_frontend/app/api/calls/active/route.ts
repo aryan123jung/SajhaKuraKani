@@ -6,6 +6,14 @@ export async function GET() {
     const response = await getActiveCall();
     return NextResponse.json(response);
   } catch (error) {
+    if (error instanceof Error && error.message === "No active call was found.") {
+      return NextResponse.json({
+        success: true,
+        message: "No active call found",
+        data: null,
+      });
+    }
+
     return NextResponse.json(
       {
         success: false,
