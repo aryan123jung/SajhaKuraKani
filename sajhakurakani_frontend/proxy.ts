@@ -132,6 +132,7 @@ export async function proxy(request: NextRequest) {
   const isResendVerificationPage = pathname === "/resend-verification";
   const isVerifyEmailPage = pathname === "/verify-email";
   const isVerifyTwoFactorPage = pathname === "/verify-2fa";
+  const isProtectedApiRoute = pathname.startsWith("/api/messages");
   const isProtectedPage =
     pathname === "/" ||
     pathname === "/settings" ||
@@ -213,7 +214,8 @@ export async function proxy(request: NextRequest) {
       isResendVerificationPage ||
       isVerifyEmailPage ||
       isVerifyTwoFactorPage ||
-      isProtectedPage)
+      isProtectedPage ||
+      isProtectedApiRoute)
   ) {
     // csrf protection
     // secure cookie flags
@@ -240,6 +242,7 @@ export const config = {
     "/resend-verification",
     "/verify-email",
     "/verify-2fa",
+    "/api/messages/:path*",
     "/user/:path*",
     "/admin/:path*",
   ],

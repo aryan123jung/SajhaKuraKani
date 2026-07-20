@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
+import { toast } from "react-toastify";
 import {
   useCallback,
   useDeferredValue,
@@ -292,6 +293,9 @@ export default function MessageWorkspace({
     });
   }, []);
 
+  const isSessionExpiredMessage = (message: string) =>
+    message.toLowerCase().includes("session has expired");
+
   const syncSelectedFriendUrl = (friendUserId: string | null) => {
     if (!friendUserId) {
       router.replace("/user/message", { scroll: false });
@@ -393,10 +397,19 @@ export default function MessageWorkspace({
       });
       setListError("");
     } catch (error) {
-      setListError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Unable to load your conversations right now."
+          : "Unable to load your conversations right now.";
+
+      if (isSessionExpiredMessage(message)) {
+        setListError("");
+        router.replace("/login");
+        return;
+      }
+
+      setListError(
+        message
       );
     }
   };
@@ -503,12 +516,19 @@ export default function MessageWorkspace({
       setThreadError("");
       await markSelectedConversationRead(friendUserId);
     } catch (error) {
-      setMessages([]);
-      setThreadError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Unable to load this conversation right now."
-      );
+          : "Unable to load this conversation right now.";
+
+      if (isSessionExpiredMessage(message)) {
+        setThreadError("");
+        router.replace("/login");
+        return;
+      }
+
+      setMessages([]);
+      setThreadError(message);
     } finally {
       setIsThreadLoading(false);
     }
@@ -620,6 +640,9 @@ export default function MessageWorkspace({
 
           if (payload.message.sender !== currentUserId) {
             playNotificationSound();
+            toast.info(`${otherUser.firstName} sent you a message.`, {
+              toastId: `message-${payload.message._id}`,
+            });
           }
 
           if (selectedFriendIdRef.current === otherUserId) {

@@ -24,7 +24,7 @@ export default function Navbar({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,169,120,0.22),_transparent_26rem),radial-gradient(circle_at_bottom_right,_rgba(255,132,83,0.14),_transparent_30rem),linear-gradient(180deg,#fffdfa_0%,#fff6ee_56%,#fffaf6_100%)] text-[#1d243f]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(57,84,166,0.05),_transparent_24rem),radial-gradient(circle_at_bottom_right,_rgba(29,36,63,0.04),_transparent_28rem),linear-gradient(180deg,#ffffff_0%,#fcfcfd_56%,#ffffff_100%)] text-[#1d243f]">
       <CallCenter currentUser={user} />
 
       <div className="sticky top-0 z-50">

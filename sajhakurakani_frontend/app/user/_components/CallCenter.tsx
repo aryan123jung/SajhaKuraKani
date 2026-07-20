@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { toast } from "react-toastify";
 import type { AuthUser } from "@/lib/api/auth";
 import type {
   CallParticipantProfile,
@@ -205,6 +206,17 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   useEffect(() => {
     setMediaElementStream(remoteAudioRef.current, remoteStream);
   }, [remoteStream]);
+
+  useEffect(() => {
+    if (!statusMessage) {
+      return;
+    }
+
+    toast.info(statusMessage, {
+      toastId: "call-status-toast",
+    });
+    setStatusMessage("");
+  }, [statusMessage]);
 
   useEffect(() => {
     const incomingCallAudio = new Audio("/sounds/incoming-call.mp3");
@@ -1026,12 +1038,6 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
   return (
     <>
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-
-      {statusMessage && !showOverlay ? (
-        <div className="fixed bottom-5 right-5 z-[70] max-w-sm rounded-[16px] border border-[#edd8cb] bg-white/96 px-4 py-3 text-sm text-[#546178] shadow-[0_18px_40px_rgba(70,40,20,0.14)]">
-          {statusMessage}
-        </div>
-      ) : null}
 
       {showOverlay ? (
         <div className="fixed inset-0 z-[80] bg-[radial-gradient(circle_at_top,#31406b_0%,#1b2340_35%,#0f172d_100%)]">
