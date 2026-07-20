@@ -1,6 +1,7 @@
 import { getUserProfileById } from "@/lib/api/auth";
 import { getPostEngagement, getUserPostsByUserId } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
+import FriendRelationshipActions from "../../_components/FriendRelationshipActions";
 import ProfileHeroCard from "../../_components/ProfileHeroCard";
 import ProfilePostsCard from "../../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../../_components/ProfileSidebarCard";
@@ -79,6 +80,18 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
         initials={initials}
         joinedLabel={joinedLabel}
         showEditButton={false}
+        actionSlot={
+          user?._id ? (
+            <FriendRelationshipActions
+              csrfToken={csrfToken}
+              userId={user._id}
+              redirectTo={`/user/profile/${user._id}`}
+              relationshipStatus={user.relationshipStatus}
+              pendingRequestId={user.pendingRequestId}
+              compact
+            />
+          ) : null
+        }
       />
 
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -91,7 +104,6 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
             profileUrl={user?.profileUrl ?? null}
             bioText={bioText}
             allowComposer={false}
-            messageHref={user ? `/user/message?friend=${encodeURIComponent(user._id)}` : null}
           />
         </aside>
 

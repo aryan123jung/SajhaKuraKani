@@ -46,5 +46,6 @@ export const sectionTitles: Record<string, string> = {
   "/user/notifications": "Notifications",
   "/user/message": "Messages",
   "/user/friends": "Friends",
+  "/user/search": "Search",
   "/settings": "Settings",
 };

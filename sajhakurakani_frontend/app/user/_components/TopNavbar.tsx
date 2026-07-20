@@ -23,7 +23,7 @@ export default function TopNavbar({
   sidebarOpen,
 }: TopNavbarProps) {
   const searchParams = useSearchParams();
-  const currentSearch = currentPath === "/user/friends" ? searchParams.get("search") ?? "" : "";
+  const currentSearch = currentPath === "/user/search" ? searchParams.get("search") ?? "" : "";
   const [query, setQuery] = useState(currentSearch);
   const [results, setResults] = useState<SearchableUserProfile[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -126,11 +126,11 @@ export default function TopNavbar({
             >
               <span className="relative flex h-14 w-14 items-center justify-center overflow-visible">
                 <Image
-                  src="/brand/bodyLOGO.svg"
+                  src="/brand/headLOGO.svg"
                   alt="SajhaKuraKani mark"
-                  width={100}
-                  height={100}
-                  className="absolute left-1/2 top-[10%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 scale-[3.5] object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.75)]"
+                  width={50}
+                  height={50}
+                  className="absolute left-1/2 top-[80%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 scale-[1.5] object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.75)]"
                   priority
                 />
               </span>
@@ -139,7 +139,7 @@ export default function TopNavbar({
         </div>
 
         <form
-          action="/user/friends"
+          action="/user/search"
           ref={searchContainerRef}
           className="topbar-search relative flex h-11 items-center self-center gap-2.5 rounded-[14px] border border-white/16 bg-white/12 px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
         >
@@ -194,6 +194,13 @@ export default function TopNavbar({
                       </div>
                     </Link>
                   ))}
+                  <Link
+                    href={`/user/search?search=${encodeURIComponent(query.trim())}`}
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center border-t border-[#f3e2d8] px-4 py-3 text-sm font-semibold text-[#ef744b] transition hover:bg-[#fff5ef]"
+                  >
+                    See all results
+                  </Link>
                 </div>
               ) : query.trim().length > 0 ? (
                 <div className="px-4 py-3 text-sm text-[#6e7687]">No matching people found.</div>

@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import HomePostComposer from "./HomePostComposer";
 
 type ProfileSidebarCardProps = {
@@ -14,6 +15,7 @@ type ProfileSidebarCardProps = {
   bioText: string;
   allowComposer?: boolean;
   messageHref?: string | null;
+  actionSlot?: ReactNode;
 };
 
 export default function ProfileSidebarCard({
@@ -25,6 +27,7 @@ export default function ProfileSidebarCard({
   bioText,
   allowComposer = true,
   messageHref = null,
+  actionSlot,
 }: ProfileSidebarCardProps) {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
 
@@ -60,6 +63,8 @@ export default function ProfileSidebarCard({
           <div className="mt-4 rounded-[12px] bg-[#faf7f4] px-3.5 py-3 text-[0.9rem] leading-7 text-[#616a7b]">
             {bioText}
           </div>
+
+          {actionSlot}
 
           {messageHref ? (
             <Link

@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { io, type Socket } from "socket.io-client";
 import {
   useDeferredValue,
   useEffect,
@@ -15,10 +16,16 @@ import type {
   MessageConversationSummary,
   MessageUserProfile,
 } from "@/lib/api/messages";
+import {
+  mergeFriendsIntoConversations,
+  type FriendCardProfile,
+  type MessageSidebarConversation,
+} from "./messageListUtils";
 
 type MessageWorkspaceProps = {
   currentUserId: string;
-  initialConversations: MessageConversationSummary[];
+  initialFriends: FriendCardProfile[];
+  initialConversations: MessageSidebarConversation[];
   initialSelectedFriendId: string | null;
   initialSelectedUser: MessageUserProfile | null;
   initialMessages: ConversationMessage[];
@@ -60,6 +67,32 @@ type SendMessageResponse = {
   message?: string;
 };
 
+type SocketAuthResponse = {
+  success: boolean;
+  token?: string;
+  message?: string;
+};
+
+type ChatMessageEventPayload = {
+  senderUserId: string;
+  recipientUserId: string;
+  pairKey: string;
+  message: ConversationMessage;
+};
+
+type ChatConversationReadEventPayload = {
+  readerUserId: string;
+  otherUserId: string;
+  pairKey: string;
+  updatedCount: number;
+};
+
+type SocketAcknowledge<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string;
+};
+
 const formatConversationTime = (value: string) => {
   const date = new Date(value);
   const now = new Date();
@@ -89,9 +122,23 @@ const getInitials = (user: MessageUserProfile) =>
   `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() ||
   user.username.slice(0, 2).toUpperCase();
 
+const dispatchStartCall = (
+  callee: MessageUserProfile,
+  callType: "audio" | "video"
+) => {
+  window.dispatchEvent(
+    new CustomEvent("sajha-call:start", {
+      detail: {
+        callee,
+        callType,
+      },
+    })
+  );
+};
+
 const reorderConversationToTop = (
-  conversations: MessageConversationSummary[],
-  nextConversation: MessageConversationSummary
+  conversations: MessageSidebarConversation[],
+  nextConversation: MessageSidebarConversation
 ) => {
   const filteredConversations = conversations.filter(
     (conversation) => conversation.otherUser.id !== nextConversation.otherUser.id
@@ -100,8 +147,28 @@ const reorderConversationToTop = (
   return [nextConversation, ...filteredConversations];
 };
 
+const THREAD_PAGE_SIZE = 50;
+const CONVERSATION_SYNC_INTERVAL_MS = 30 * 1000;
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost:5050";
+
+const fetchSocketToken = async () => {
+  const response = await fetch("/api/realtime/socket-auth", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const payload = (await response.json()) as SocketAuthResponse;
+
+  if (!response.ok || !payload.success || !payload.token) {
+    throw new Error(payload.message || "Unable to prepare realtime access right now.");
+  }
+
+  return payload.token;
+};
+
 export default function MessageWorkspace({
   currentUserId,
+  initialFriends,
   initialConversations,
   initialSelectedFriendId,
   initialSelectedUser,
@@ -109,11 +176,15 @@ export default function MessageWorkspace({
   initialLoadError = "",
 }: MessageWorkspaceProps) {
   const router = useRouter();
+  const socketRef = useRef<Socket | null>(null);
+  const connectRetryRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const loadConversationsRef = useRef<() => Promise<void>>(async () => {});
   const loadThreadRef = useRef<(friendUserId: string) => Promise<void>>(async () => {});
+  const markConversationReadRef = useRef<(friendUserId: string) => Promise<void>>(async () => {});
   const [conversationQuery, setConversationQuery] = useState("");
   const [composerValue, setComposerValue] = useState("");
+  const [friendProfiles] = useState<FriendCardProfile[]>(initialFriends);
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(() => {
     if (initialSelectedFriendId) {
@@ -132,6 +203,18 @@ export default function MessageWorkspace({
   const [isThreadLoading, setIsThreadLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const deferredConversationQuery = useDeferredValue(conversationQuery);
+  const selectedConversation =
+    selectedFriendId
+      ? conversations.find((conversation) => conversation.otherUser.id === selectedFriendId) ??
+        null
+      : null;
+  const selectedFriendIdRef = useRef<string | null>(selectedFriendId);
+  const selectedUserRef = useRef<MessageUserProfile | null>(selectedUser);
+  const selectedConversationRef = useRef<MessageSidebarConversation | null>(
+    selectedConversation
+  );
+  const conversationsRef = useRef<MessageSidebarConversation[]>(conversations);
+  const friendProfilesRef = useRef<FriendCardProfile[]>(friendProfiles);
 
   const normalizedConversationQuery = deferredConversationQuery.trim().toLowerCase();
   const filteredConversations = !normalizedConversationQuery
@@ -160,53 +243,93 @@ export default function MessageWorkspace({
     });
   };
 
+  const mergeMessages = (
+    currentMessages: ConversationMessage[],
+    incomingMessage: ConversationMessage
+  ) => {
+    const existingMessageIndex = currentMessages.findIndex(
+      (message) => message._id === incomingMessage._id
+    );
+
+    if (existingMessageIndex >= 0) {
+      return currentMessages.map((message) =>
+        message._id === incomingMessage._id ? incomingMessage : message
+      );
+    }
+
+    const temporaryMessageIndex = currentMessages.findIndex(
+      (message) =>
+        message._id.startsWith("temp-") &&
+        message.sender === incomingMessage.sender &&
+        message.recipient === incomingMessage.recipient &&
+        message.content === incomingMessage.content
+    );
+
+    if (temporaryMessageIndex >= 0) {
+      return currentMessages.map((message, index) =>
+        index === temporaryMessageIndex ? incomingMessage : message
+      );
+    }
+
+    return [...currentMessages, incomingMessage];
+  };
+
+  const resolveUserProfile = (otherUserId: string): MessageUserProfile | null => {
+    if (selectedUserRef.current?.id === otherUserId) {
+      return selectedUserRef.current;
+    }
+
+    const existingConversation = conversationsRef.current.find(
+      (conversation) => conversation.otherUser.id === otherUserId
+    );
+    if (existingConversation) {
+      return existingConversation.otherUser;
+    }
+
+    const friendProfile = friendProfilesRef.current.find((friend) => friend.id === otherUserId);
+    if (!friendProfile) {
+      return null;
+    }
+
+    return {
+      id: friendProfile.id,
+      firstName: friendProfile.firstName,
+      lastName: friendProfile.lastName,
+      username: friendProfile.username,
+      profileUrl: friendProfile.profileUrl ?? null,
+    };
+  };
+
   const loadConversations = async () => {
     try {
-      const response = await fetch("/api/messages/conversations?size=30", {
+      const conversationsResponse = await fetch("/api/messages/conversations?size=30", {
         cache: "no-store",
         credentials: "same-origin",
       });
-      const payload = (await response.json()) as ConversationListResponse;
+      const conversationsPayload =
+        (await conversationsResponse.json()) as ConversationListResponse;
 
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.message || "Unable to load your conversations right now.");
+      if (!conversationsResponse.ok || !conversationsPayload.success) {
+        throw new Error(
+          conversationsPayload.message || "Unable to load your conversations right now."
+        );
       }
 
       setConversations((currentConversations) => {
-        const selectedConversation =
+        const activeConversation =
           selectedFriendId && selectedUser
             ? currentConversations.find(
                 (conversation) => conversation.otherUser.id === selectedFriendId
               )
             : undefined;
 
-        let nextConversations = payload.data ?? [];
-
-        if (selectedFriendId && selectedUser && !nextConversations.some(
-          (conversation) => conversation.otherUser.id === selectedFriendId
-        )) {
-          const fallbackConversation: MessageConversationSummary = {
-            pairKey: selectedConversation?.pairKey ?? `${currentUserId}:${selectedFriendId}`,
-            otherUser: selectedUser,
-            unreadCount: 0,
-            latestMessage:
-              selectedConversation?.latestMessage ??
-              {
-                _id: `placeholder-${selectedFriendId}`,
-                pairKey: `${currentUserId}:${selectedFriendId}`,
-                participants: [currentUserId, selectedFriendId],
-                sender: currentUserId,
-                recipient: selectedFriendId,
-                content: "Start your conversation here.",
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              },
-          };
-
-          nextConversations = [fallbackConversation, ...nextConversations];
-        }
-
-        return nextConversations;
+        return mergeFriendsIntoConversations({
+          currentUserId,
+          conversations: conversationsPayload.data ?? [],
+          friends: friendProfiles,
+          selectedFriendId,
+          selectedUser: activeConversation?.otherUser ?? selectedUser,
+        });
       });
       setListError("");
     } catch (error) {
@@ -219,6 +342,52 @@ export default function MessageWorkspace({
   };
 
   const markSelectedConversationRead = async (friendUserId: string) => {
+    const activeSocket = socketRef.current;
+
+    if (activeSocket?.connected) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          activeSocket.emit(
+            "chat:mark-read",
+            {
+              friendUserId,
+            },
+            (acknowledge: SocketAcknowledge<ReadConversationResponse["data"]>) => {
+              if (acknowledge?.success) {
+                resolve();
+                return;
+              }
+
+              reject(
+                new Error(
+                  acknowledge?.message || "Unable to update this conversation right now."
+                )
+              );
+            }
+          );
+        });
+
+        const readTimestamp = new Date().toISOString();
+        setConversations((currentConversations) =>
+          currentConversations.map((conversation) =>
+            conversation.otherUser.id === friendUserId
+              ? { ...conversation, unreadCount: 0 }
+              : conversation
+          )
+        );
+        setMessages((currentMessages) =>
+          currentMessages.map((message) =>
+            message.recipient === currentUserId && !message.readAt
+              ? { ...message, readAt: readTimestamp }
+              : message
+          )
+        );
+        return;
+      } catch {
+        // Fall back to the HTTP route if realtime acknowledgement fails.
+      }
+    }
+
     try {
       const response = await fetch(
         `/api/messages/conversations/${encodeURIComponent(friendUserId)}/read`,
@@ -257,7 +426,7 @@ export default function MessageWorkspace({
     try {
       setIsThreadLoading(true);
       const response = await fetch(
-        `/api/messages/conversations/${encodeURIComponent(friendUserId)}?size=80`,
+        `/api/messages/conversations/${encodeURIComponent(friendUserId)}?size=${THREAD_PAGE_SIZE}`,
         {
           cache: "no-store",
           credentials: "same-origin",
@@ -288,7 +457,177 @@ export default function MessageWorkspace({
   useEffect(() => {
     loadConversationsRef.current = loadConversations;
     loadThreadRef.current = loadThread;
+    markConversationReadRef.current = markSelectedConversationRead;
   });
+
+  useEffect(() => {
+    selectedFriendIdRef.current = selectedFriendId;
+  }, [selectedFriendId]);
+
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
+
+  useEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    friendProfilesRef.current = friendProfiles;
+  }, [friendProfiles]);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    const initializeSocket = async () => {
+      try {
+        const token = await fetchSocketToken();
+
+        if (isDisposed) {
+          return;
+        }
+
+        const socket = io(SOCKET_URL, {
+          autoConnect: false,
+          transports: ["websocket", "polling"],
+          withCredentials: true,
+          auth: { token },
+        });
+
+        socket.on("connect", () => {
+          connectRetryRef.current = false;
+          setListError("");
+          void loadConversationsRef.current();
+
+          if (
+            selectedFriendIdRef.current &&
+            selectedConversationRef.current?.hasConversation
+          ) {
+            void loadThreadRef.current(selectedFriendIdRef.current);
+          }
+        });
+
+        socket.on("connect_error", async () => {
+          if (connectRetryRef.current) {
+            return;
+          }
+
+          connectRetryRef.current = true;
+
+          try {
+            const nextToken = await fetchSocketToken();
+            socket.auth = { token: nextToken };
+            socket.connect();
+          } catch {
+            setListError("Realtime messaging is temporarily unavailable.");
+          }
+        });
+
+        socket.on("chat:message", (payload: ChatMessageEventPayload) => {
+          const otherUserId =
+            payload.message.sender === currentUserId
+              ? payload.message.recipient
+              : payload.message.sender;
+          const otherUser = resolveUserProfile(otherUserId);
+
+          if (!otherUser) {
+            void loadConversationsRef.current();
+            return;
+          }
+
+          setConversations((currentConversations) => {
+            const existingConversation = currentConversations.find(
+              (conversation) => conversation.otherUser.id === otherUserId
+            );
+            const shouldIncrementUnread =
+              payload.message.sender !== currentUserId &&
+              selectedFriendIdRef.current !== otherUserId;
+
+            return reorderConversationToTop(currentConversations, {
+              pairKey: payload.pairKey,
+              otherUser,
+              unreadCount: shouldIncrementUnread
+                ? (existingConversation?.unreadCount ?? 0) + 1
+                : 0,
+              latestMessage: payload.message,
+              hasConversation: true,
+            });
+          });
+
+          if (selectedFriendIdRef.current === otherUserId) {
+            setMessages((currentMessages) =>
+              mergeMessages(currentMessages, payload.message)
+            );
+            setThreadError("");
+
+            if (
+              payload.message.sender !== currentUserId &&
+              document.visibilityState === "visible"
+            ) {
+              void markConversationReadRef.current(otherUserId);
+            }
+          }
+        });
+
+        socket.on(
+          "chat:conversation-read",
+          (payload: ChatConversationReadEventPayload) => {
+            const readTimestamp = new Date().toISOString();
+
+            if (payload.readerUserId === currentUserId) {
+              setConversations((currentConversations) =>
+                currentConversations.map((conversation) =>
+                  conversation.otherUser.id === payload.otherUserId
+                    ? { ...conversation, unreadCount: 0 }
+                    : conversation
+                )
+              );
+              setMessages((currentMessages) =>
+                currentMessages.map((message) =>
+                  message.recipient === currentUserId && !message.readAt
+                    ? { ...message, readAt: readTimestamp }
+                    : message
+                )
+              );
+              return;
+            }
+
+            if (
+              payload.otherUserId === currentUserId &&
+              selectedFriendIdRef.current === payload.readerUserId
+            ) {
+              setMessages((currentMessages) =>
+                currentMessages.map((message) =>
+                  message.sender === currentUserId &&
+                  message.recipient === payload.readerUserId &&
+                  !message.readAt
+                    ? { ...message, readAt: readTimestamp }
+                    : message
+                )
+              );
+            }
+          }
+        );
+
+        socketRef.current = socket;
+        socket.connect();
+      } catch {
+        setListError("Realtime messaging is temporarily unavailable.");
+      }
+    };
+
+    void initializeSocket();
+
+    return () => {
+      isDisposed = true;
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -297,26 +636,30 @@ export default function MessageWorkspace({
       }
 
       void loadConversationsRef.current();
-      if (selectedFriendId) {
-        void loadThreadRef.current(selectedFriendId);
-      }
-    }, 4000);
+    }, CONVERSATION_SYNC_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [selectedFriendId]);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  const handleConversationSelect = (friendUserId: string, user: MessageUserProfile) => {
+  const handleConversationSelect = (conversation: MessageSidebarConversation) => {
+    const friendUserId = conversation.otherUser.id;
     setSelectedFriendId(friendUserId);
-    setSelectedUser(user);
+    setSelectedUser(conversation.otherUser);
     setThreadError("");
     setSendError("");
     syncSelectedFriendUrl(friendUserId);
+
+    if (!conversation.hasConversation) {
+      setMessages([]);
+      return;
+    }
+
     void loadThread(friendUserId);
   };
 
@@ -351,40 +694,80 @@ export default function MessageWorkspace({
         otherUser: selectedUser,
         unreadCount: 0,
         latestMessage: optimisticMessage,
+        hasConversation: true,
       })
     );
 
     try {
-      const response = await fetch(
-        `/api/messages/conversations/${encodeURIComponent(selectedFriendId)}`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ content: trimmedMessage }),
-        }
-      );
-      const payload = (await response.json()) as SendMessageResponse;
+      let payloadData: SendMessageResponse["data"] | undefined;
+      const activeSocket = socketRef.current;
 
-      if (!response.ok || !payload.success || !payload.data) {
-        throw new Error(payload.message || "Unable to send this message right now.");
+      if (activeSocket?.connected) {
+        const acknowledge = await new Promise<
+          SocketAcknowledge<SendMessageResponse["data"]>
+        >((resolve, reject) => {
+          activeSocket.emit(
+            "chat:send-message",
+            {
+              friendUserId: selectedFriendId,
+              content: trimmedMessage,
+            },
+            (acknowledgePayload: SocketAcknowledge<SendMessageResponse["data"]>) => {
+              if (acknowledgePayload?.success) {
+                resolve(acknowledgePayload);
+                return;
+              }
+
+              reject(
+                new Error(
+                  acknowledgePayload?.message || "Unable to send this message right now."
+                )
+              );
+            }
+          );
+        });
+
+        payloadData = acknowledge.data;
+      } else {
+        const response = await fetch(
+          `/api/messages/conversations/${encodeURIComponent(selectedFriendId)}`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ content: trimmedMessage }),
+          }
+        );
+        const payload = (await response.json()) as SendMessageResponse;
+
+        if (!response.ok || !payload.success || !payload.data) {
+          throw new Error(payload.message || "Unable to send this message right now.");
+        }
+
+        payloadData = payload.data;
+      }
+
+      if (!payloadData) {
+        throw new Error("Unable to send this message right now.");
       }
 
       setMessages((currentMessages) =>
         currentMessages.map((message) =>
-          message._id === temporaryMessageId ? payload.data!.message : message
+          message._id === temporaryMessageId ? payloadData.message : message
         )
       );
       setConversations((currentConversations) =>
         reorderConversationToTop(currentConversations, {
-          pairKey: payload.data!.pairKey,
+          pairKey: payloadData.pairKey,
           otherUser: selectedUser,
           unreadCount: 0,
-          latestMessage: payload.data!.message,
+          latestMessage: payloadData.message,
+          hasConversation: true,
         })
       );
+      setThreadError("");
     } catch (error) {
       setMessages((currentMessages) =>
         currentMessages.filter((message) => message._id !== temporaryMessageId)
@@ -440,12 +823,7 @@ export default function MessageWorkspace({
                 <button
                   key={`${conversation.pairKey}-${conversation.otherUser.id}`}
                   type="button"
-                  onClick={() =>
-                    handleConversationSelect(
-                      conversation.otherUser.id,
-                      conversation.otherUser
-                    )
-                  }
+                  onClick={() => handleConversationSelect(conversation)}
                   className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
                     isActive
                       ? "border-[#efc3ae] bg-[#fff3ec] shadow-[0_10px_22px_rgba(241,111,56,0.08)]"
@@ -530,6 +908,22 @@ export default function MessageWorkspace({
               >
                 View profile
               </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => dispatchStartCall(selectedUser, "audio")}
+                  className="rounded-[12px] border border-[#edd8cb] bg-[#fff8f3] px-3.5 py-2 text-[0.82rem] font-semibold text-[#546178] transition hover:bg-white"
+                >
+                  Audio call
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dispatchStartCall(selectedUser, "video")}
+                  className="rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-3.5 py-2 text-[0.82rem] font-semibold text-white shadow-[0_10px_20px_rgba(241,111,56,0.14)] transition hover:opacity-95"
+                >
+                  Video call
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,#fffdfa_0%,#fff8f2_100%)] px-5 py-5">

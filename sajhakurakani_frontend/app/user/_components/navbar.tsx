@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import type { AuthUser } from "@/lib/api/auth";
+import CallCenter from "./CallCenter";
 import SideNavbar from "./SideNavbar";
 import TopNavbar from "./TopNavbar";
 
@@ -24,6 +25,8 @@ export default function Navbar({
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,169,120,0.22),_transparent_26rem),radial-gradient(circle_at_bottom_right,_rgba(255,132,83,0.14),_transparent_30rem),linear-gradient(180deg,#fffdfa_0%,#fff6ee_56%,#fffaf6_100%)] text-[#1d243f]">
+      <CallCenter currentUser={user} />
+
       <div className="sticky top-0 z-50">
         <TopNavbar
           currentPath={pathname}

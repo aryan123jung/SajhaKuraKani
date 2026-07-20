@@ -40,6 +40,12 @@ export type SearchableUserProfile = {
   coverUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  relationshipStatus?:
+    | "none"
+    | "friends"
+    | "incoming_request"
+    | "outgoing_request";
+  pendingRequestId?: string | null;
 };
 
 type ApiResponse<T> = {

@@ -13,7 +13,9 @@ import { assertValidCsrfToken } from "../csrf";
 
 const getSafeRedirectTarget = (value: FormDataEntryValue | null) => {
   const redirectTo = typeof value === "string" ? value : "";
-  return redirectTo.startsWith("/user/friends") ? redirectTo : "/user/friends";
+  return redirectTo.startsWith("/user/") || redirectTo === "/settings"
+    ? redirectTo
+    : "/user/friends";
 };
 
 const redirectWithMessage = (
@@ -33,6 +35,8 @@ export async function sendFriendRequestAction(formData: FormData) {
     await assertValidCsrfToken(formData);
     await sendFriendRequest(String(formData.get("recipientUserId") || ""));
     revalidatePath("/user/friends");
+    revalidatePath("/user/search");
+    revalidatePath("/user/profile/[userId]", "page");
     redirectWithMessage(redirectTo, "notice", "Friend request sent.");
   } catch (error) {
     redirectWithMessage(
@@ -50,6 +54,8 @@ export async function acceptFriendRequestAction(formData: FormData) {
     await assertValidCsrfToken(formData);
     await acceptFriendRequest(String(formData.get("requestId") || ""));
     revalidatePath("/user/friends");
+    revalidatePath("/user/search");
+    revalidatePath("/user/profile/[userId]", "page");
     redirectWithMessage(redirectTo, "notice", "Friend request accepted.");
   } catch (error) {
     redirectWithMessage(
@@ -67,6 +73,8 @@ export async function rejectFriendRequestAction(formData: FormData) {
     await assertValidCsrfToken(formData);
     await rejectFriendRequest(String(formData.get("requestId") || ""));
     revalidatePath("/user/friends");
+    revalidatePath("/user/search");
+    revalidatePath("/user/profile/[userId]", "page");
     redirectWithMessage(redirectTo, "notice", "Friend request declined.");
   } catch (error) {
     redirectWithMessage(
@@ -84,6 +92,8 @@ export async function cancelFriendRequestAction(formData: FormData) {
     await assertValidCsrfToken(formData);
     await cancelFriendRequest(String(formData.get("requestId") || ""));
     revalidatePath("/user/friends");
+    revalidatePath("/user/search");
+    revalidatePath("/user/profile/[userId]", "page");
     redirectWithMessage(redirectTo, "notice", "Pending request cancelled.");
   } catch (error) {
     redirectWithMessage(
@@ -101,6 +111,8 @@ export async function removeFriendAction(formData: FormData) {
     await assertValidCsrfToken(formData);
     await removeFriend(String(formData.get("friendUserId") || ""));
     revalidatePath("/user/friends");
+    revalidatePath("/user/search");
+    revalidatePath("/user/profile/[userId]", "page");
     redirectWithMessage(redirectTo, "notice", "Friend removed.");
   } catch (error) {
     redirectWithMessage(
