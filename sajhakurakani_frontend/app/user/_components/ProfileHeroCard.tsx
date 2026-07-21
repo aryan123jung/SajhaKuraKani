@@ -6,7 +6,7 @@ import { ProfileViewUser } from "./profileTypes";
 
 export type ProfileTabKey = "posts" | "friends" | "photos";
 
-const profileTabs: Array<{ label: string; value: ProfileTabKey }> = [
+const defaultProfileTabs: Array<{ label: string; value: ProfileTabKey }> = [
   { label: "Posts", value: "posts" },
   { label: "Friends", value: "friends" },
   { label: "Photos", value: "photos" },
@@ -22,6 +22,7 @@ type ProfileHeroCardProps = {
   actionSlot?: ReactNode;
   activeTab?: ProfileTabKey;
   onTabChange?: (tab: ProfileTabKey) => void;
+  tabs?: Array<{ label: string; value: ProfileTabKey }>;
 };
 
 export default function ProfileHeroCard({
@@ -34,6 +35,7 @@ export default function ProfileHeroCard({
   actionSlot,
   activeTab = "posts",
   onTabChange,
+  tabs = defaultProfileTabs,
 }: ProfileHeroCardProps) {
   return (
     <section className="overflow-hidden rounded-[22px] border border-[#e6d8d0] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.08)]">
@@ -99,7 +101,7 @@ export default function ProfileHeroCard({
 
         <div className="mt-5 border-t border-[#eee3dc] pt-3">
           <div className="flex flex-wrap items-center gap-2">
-            {profileTabs.map((tab, index) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.label}
                 type="button"

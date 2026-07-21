@@ -14,8 +14,9 @@ type ProfileTabbedLayoutProps = {
   actionSlot?: ReactNode;
   sidebarSlot: ReactNode;
   postsSlot: ReactNode;
-  friendsSlot: ReactNode;
+  friendsSlot?: ReactNode;
   photosSlot: ReactNode;
+  tabs?: Array<{ label: string; value: ProfileTabKey }>;
 };
 
 export default function ProfileTabbedLayout({
@@ -30,11 +31,13 @@ export default function ProfileTabbedLayout({
   postsSlot,
   friendsSlot,
   photosSlot,
+  tabs,
 }: ProfileTabbedLayoutProps) {
-  const [activeTab, setActiveTab] = useState<ProfileTabKey>("posts");
+  const activeTabValues = tabs?.map((tab) => tab.value) ?? ["posts", "friends", "photos"];
+  const [activeTab, setActiveTab] = useState<ProfileTabKey>(activeTabValues[0] ?? "posts");
 
   const activeContent =
-    activeTab === "friends"
+    activeTab === "friends" && friendsSlot
       ? friendsSlot
       : activeTab === "photos"
         ? photosSlot
@@ -52,6 +55,7 @@ export default function ProfileTabbedLayout({
         actionSlot={actionSlot}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        tabs={tabs}
       />
 
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">

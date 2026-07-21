@@ -7,6 +7,7 @@ import {
 import { type FriendOverview, getFriendOverview } from "@/lib/api/friends";
 import { getCsrfToken } from "@/lib/csrf";
 import Link from "next/link";
+import FriendsTabbedSection from "./_components/FriendsTabbedSection";
 /* eslint-disable @next/next/no-img-element */
 
 type FriendsPageProps = {
@@ -120,8 +121,8 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
         ) : null}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="space-y-4">
+      <FriendsTabbedSection
+        currentFriendsSlot={
           <div className={sectionCardClass}>
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#ef744b]">
               Current friends
@@ -188,9 +189,8 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
               )}
             </div>
           </div>
-        </div>
-
-        <div className="space-y-4">
+        }
+        incomingRequestsSlot={
           <div className={sectionCardClass}>
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#ef744b]">
               Incoming
@@ -271,7 +271,8 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
               )}
             </div>
           </div>
-
+        }
+        outgoingRequestsSlot={
           <div className={sectionCardClass}>
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#ef744b]">
               Outgoing
@@ -337,8 +338,8 @@ export default async function UserFriendsPage({ searchParams }: FriendsPageProps
               )}
             </div>
           </div>
-        </div>
-      </section>
+        }
+      />
     </div>
   );
 }

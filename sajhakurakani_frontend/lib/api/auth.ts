@@ -32,6 +32,14 @@ export type AuthUser = {
   updatedAt?: string;
 };
 
+export type CompactFriendProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profileUrl?: string | null;
+};
+
 export type SearchableUserProfile = {
   _id: string;
   firstName: string;
@@ -48,6 +56,8 @@ export type SearchableUserProfile = {
     | "incoming_request"
     | "outgoing_request";
   pendingRequestId?: string | null;
+  mutualFriendsCount?: number;
+  mutualFriends?: CompactFriendProfile[];
 };
 
 type ApiResponse<T> = {
@@ -148,12 +158,20 @@ const normalizeAuthUser = (user: AuthUser): AuthUser => ({
   coverUrl: resolveUploadedUserAssetUrl(user.coverUrl, "cover"),
 });
 
+const normalizeCompactFriendProfile = (
+  user: CompactFriendProfile
+): CompactFriendProfile => ({
+  ...user,
+  profileUrl: resolveUploadedUserAssetUrl(user.profileUrl, "profile"),
+});
+
 const normalizeSearchableUserProfile = (
   user: SearchableUserProfile
 ): SearchableUserProfile => ({
   ...user,
   profileUrl: resolveUploadedUserAssetUrl(user.profileUrl, "profile"),
   coverUrl: resolveUploadedUserAssetUrl(user.coverUrl, "cover"),
+  mutualFriends: user.mutualFriends?.map(normalizeCompactFriendProfile) ?? [],
 });
 
 const getSafeErrorMessage = (

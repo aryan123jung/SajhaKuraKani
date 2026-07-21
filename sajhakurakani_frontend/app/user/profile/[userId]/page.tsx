@@ -2,7 +2,7 @@ import { getUserProfileById } from "@/lib/api/auth";
 import { getPostEngagement, getUserPostsByUserId } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
 import FriendRelationshipActions from "../../_components/FriendRelationshipActions";
-import ProfileFriendsCard from "../../_components/ProfileFriendsCard";
+import MutualFriendsCard from "../../_components/MutualFriendsCard";
 import ProfilePhotosCard from "../../_components/ProfilePhotosCard";
 import ProfilePostsCard from "../../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../../_components/ProfileSidebarCard";
@@ -101,6 +101,12 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
             profileUrl={user?.profileUrl ?? null}
             bioText={bioText}
             allowComposer={false}
+            actionSlot={
+              <MutualFriendsCard
+                mutualFriends={user?.mutualFriends ?? []}
+                mutualFriendsCount={user?.mutualFriendsCount ?? 0}
+              />
+            }
           />
         }
         postsSlot={
@@ -113,18 +119,16 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
           canManagePosts={false}
         />
         }
-        friendsSlot={
-          <ProfileFriendsCard
-          friends={[]}
-          emptyMessage="Friend connections are not shown on this profile yet."
-        />
-        }
         photosSlot={
           <ProfilePhotosCard
           media={profilePhotos}
           emptyMessage="No shared photos are available on this profile yet."
         />
         }
+        tabs={[
+          { label: "Posts", value: "posts" },
+          { label: "Photos", value: "photos" },
+        ]}
       />
   );
 }
