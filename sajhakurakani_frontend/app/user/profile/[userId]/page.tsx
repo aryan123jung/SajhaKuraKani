@@ -7,9 +7,6 @@ import ProfilePostsCard from "../../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../../_components/ProfileSidebarCard";
 import type { ProfilePost } from "../../_components/profileTypes";
 
-const bioText =
-  "Building a calmer social identity space focused on trust, safety, and real connections.";
-
 type UserProfileByIdPageProps = {
   params: Promise<{
     userId: string;
@@ -64,6 +61,7 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
   const initials = user
     ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase()
     : "SK";
+  const bioText = user?.bio?.trim() || "";
   const joinedLabel = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString("en-US", {
         month: "long",

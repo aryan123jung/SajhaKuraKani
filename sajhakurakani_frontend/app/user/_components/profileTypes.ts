@@ -5,6 +5,7 @@ export type ProfileViewUser = {
   firstName?: string;
   lastName?: string;
   username?: string;
+  bio?: string | null;
   profileUrl?: string | null;
   coverUrl?: string | null;
   createdAt?: string;

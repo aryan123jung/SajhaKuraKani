@@ -23,6 +23,7 @@ export type AuthUser = {
   lastName: string;
   email: string;
   username: string;
+  bio?: string | null;
   role: "user" | "admin";
   profileUrl?: string | null;
   coverUrl?: string | null;
@@ -36,6 +37,7 @@ export type SearchableUserProfile = {
   firstName: string;
   lastName: string;
   username: string;
+  bio?: string | null;
   profileUrl?: string | null;
   coverUrl?: string | null;
   createdAt?: string;
@@ -91,6 +93,15 @@ export type AuthSession = {
   userAgent: string;
 };
 
+export type UpdateProfilePayload = {
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  bio?: string;
+  profileUrl?: File | null;
+  coverUrl?: File | null;
+};
+
 type TotpSetupData = {
   manualEntryKey: string;
   otpAuthUrl: string;
@@ -104,6 +115,46 @@ type ResetPasswordValidationData = {
 type EmailVerificationData = {
   email: string;
 };
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const resolveUploadedUserAssetUrl = (
+  value: string | null | undefined,
+  type: "profile" | "cover"
+) => {
+  if (!value) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    return API_BASE_URL ? `${API_BASE_URL}${value}` : value;
+  }
+
+  const normalizedFileName = value.replace(/^\/+/, "");
+  const assetPath = `/uploads/${type}/${normalizedFileName}`;
+
+  return API_BASE_URL ? `${API_BASE_URL}${assetPath}` : assetPath;
+};
+
+const normalizeAuthUser = (user: AuthUser): AuthUser => ({
+  ...user,
+  profileUrl: resolveUploadedUserAssetUrl(user.profileUrl, "profile"),
+  coverUrl: resolveUploadedUserAssetUrl(user.coverUrl, "cover"),
+});
+
+const normalizeSearchableUserProfile = (
+  user: SearchableUserProfile
+): SearchableUserProfile => ({
+  ...user,
+  profileUrl: resolveUploadedUserAssetUrl(user.profileUrl, "profile"),
+  coverUrl: resolveUploadedUserAssetUrl(user.coverUrl, "cover"),
+});
 
 const getSafeErrorMessage = (
   error: unknown,
@@ -221,7 +272,13 @@ export async function login(payload: LoginPayload) {
       throw new Error("Authentication tokens were not returned by the server.");
     }
 
-    return response.data;
+    return {
+      ...response.data,
+      data: {
+        ...response.data.data,
+        user: normalizeAuthUser(response.data.data.user),
+      },
+    };
   } catch (error) {
     throw new Error(
       getSafeErrorMessage(error, "Unable to sign in right now.", "login")
@@ -236,7 +293,10 @@ export async function register(payload: RegisterPayload) {
       payload
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
   } catch (error) {
     throw new Error(
       getSafeErrorMessage(
@@ -283,7 +343,13 @@ export async function exchangeGoogleOAuthCode(payload: {
       throw new Error("Authentication tokens were not returned by the server.");
     }
 
-    return response.data;
+    return {
+      ...response.data,
+      data: {
+        ...response.data.data,
+        user: normalizeAuthUser(response.data.data.user),
+      },
+    };
   } catch (error) {
     throw new Error(
       getSafeErrorMessage(
@@ -309,7 +375,10 @@ export async function verifyGoogleOAuthTotp(payload: {
       throw new Error("Authentication tokens were not returned by the server.");
     }
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
   } catch (error) {
     throw new Error(
       getSafeErrorMessage(
@@ -335,7 +404,10 @@ export async function verifyLoginTotp(payload: {
       throw new Error("Authentication tokens were not returned by the server.");
     }
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
   } catch (error) {
     throw new Error(
       getSafeErrorMessage(
@@ -520,7 +592,10 @@ export async function getCurrentUser() {
       "/api/auth/whoami"
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
@@ -538,13 +613,74 @@ export async function getCurrentUser() {
   }
 }
 
+export async function updateCurrentUserProfile(payload: FormData) {
+  try {
+    const response = await axiosInstance.put<ApiResponse<AuthUser>>(
+      "/api/auth/update-profile",
+      payload,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
+  } catch (error) {
+    if (!axios.isAxiosError(error)) {
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : "Unable to update your profile right now."
+      );
+    }
+
+    const status = error.response?.status;
+    const responseMessage =
+      ((error.response?.data as { message?: string } | undefined)?.message || "").toLowerCase();
+
+    if (status === 401) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    if (responseMessage.includes("username already in use")) {
+      throw new Error("That username is already taken.");
+    }
+
+    if (responseMessage.includes("email already in use")) {
+      throw new Error("That email is already linked to an account.");
+    }
+
+    if (status === 400 && responseMessage.includes("username can only contain")) {
+      throw new Error("Unable to save that username right now.");
+    }
+
+    if (
+      status === 400 &&
+      (responseMessage.includes("only image or video files are allowed") ||
+        responseMessage.includes("file signature validation") ||
+        responseMessage.includes("exceeded the allowed file size"))
+    ) {
+      throw new Error("One or more profile images failed the upload security checks.");
+    }
+
+    throw new Error("Unable to update your profile right now.");
+  }
+}
+
 export async function getUserProfileById(userId: string) {
   try {
     const response = await axiosInstance.get<ApiResponse<SearchableUserProfile>>(
       `/api/auth/users/${encodeURIComponent(userId)}`
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeSearchableUserProfile(response.data.data),
+    };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
@@ -581,7 +717,10 @@ export async function searchUsers(search?: string, page = 1, size = 10) {
       `/api/auth/users?${params.toString()}`
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data.map(normalizeSearchableUserProfile),
+    };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
@@ -614,7 +753,10 @@ export async function refreshSession(refreshToken: string) {
       throw new Error("Authentication tokens were not returned by the server.");
     }
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeAuthUser(response.data.data),
+    };
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       throw new Error("Your session has expired. Please sign in again.");

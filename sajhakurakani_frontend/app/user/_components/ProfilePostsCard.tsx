@@ -1,8 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   deletePostAction,
   updatePostAction,
@@ -32,6 +32,7 @@ export default function ProfilePostsCard({
   posts,
   canManagePosts = true,
 }: ProfilePostsCardProps) {
+  const router = useRouter();
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [updateState, setUpdateState] = useState(initialUpdatePostActionState);
@@ -256,12 +257,13 @@ export default function ProfilePostsCard({
 
       {canManagePosts ? (
         <div className="rounded-[18px] border border-[#e6d8d0] bg-white/88 p-4 text-center shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
-          <Link
-            href="/user/home"
+          <button
+            type="button"
+            onClick={() => router.push("/user/home")}
             className="inline-flex rounded-[12px] bg-[#f7f3ef] px-4 py-2.5 text-[0.9rem] font-semibold text-[#556278]"
           >
             Return to home feed
-          </Link>
+          </button>
         </div>
       ) : null}
     </div>

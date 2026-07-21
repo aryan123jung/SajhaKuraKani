@@ -30,6 +30,7 @@ export default function ProfileSidebarCard({
   actionSlot,
 }: ProfileSidebarCardProps) {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const hasBio = bioText.trim().length > 0;
 
   useEffect(() => {
     if (!isComposerOpen) {
@@ -57,19 +58,25 @@ export default function ProfileSidebarCard({
     <>
       <div className="space-y-4">
         <div className="rounded-[18px] border border-[#e6d8d0] bg-white/88 p-4 shadow-[0_14px_32px_rgba(128,84,53,0.06)]">
-          <h2 className="mt-2 text-[1.25rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
-            Bio
-          </h2>
-          <div className="mt-4 rounded-[12px] bg-[#faf7f4] px-3.5 py-3 text-[0.9rem] leading-7 text-[#616a7b]">
-            {bioText}
-          </div>
+          {hasBio ? (
+            <>
+              <h2 className="mt-2 text-[1.25rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
+                Bio
+              </h2>
+              <div className="mt-4 rounded-[12px] bg-[#faf7f4] px-3.5 py-3 text-[0.9rem] leading-7 text-[#616a7b]">
+                {bioText}
+              </div>
+            </>
+          ) : null}
 
-          {actionSlot}
+          {actionSlot ? <div className={hasBio ? "mt-4" : ""}>{actionSlot}</div> : null}
 
           {messageHref ? (
             <Link
               href={messageHref}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-4 py-2.5 text-[0.88rem] font-semibold text-white shadow-[0_10px_22px_rgba(241,111,56,0.16)]"
+              className={`inline-flex w-full items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] px-4 py-2.5 text-[0.88rem] font-semibold text-white shadow-[0_10px_22px_rgba(241,111,56,0.16)] ${
+                hasBio || actionSlot ? "mt-4" : ""
+              }`}
             >
               Message
             </Link>

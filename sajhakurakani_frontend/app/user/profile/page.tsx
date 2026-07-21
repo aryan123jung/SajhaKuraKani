@@ -1,13 +1,11 @@
 import { getCurrentUser } from "@/lib/api/auth";
 import { getCurrentUserPosts, getPostEngagement } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
+import ProfileEditLauncher from "../_components/ProfileEditLauncher";
 import ProfileHeroCard from "../_components/ProfileHeroCard";
 import ProfilePostsCard from "../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../_components/ProfileSidebarCard";
 import type { ProfilePost } from "../_components/profileTypes";
-
-const bioText =
-  "Building a calmer social identity space focused on trust, safety, and real connections.";
 
 export default async function UserProfilePage() {
   let user = null;
@@ -52,9 +50,11 @@ export default async function UserProfilePage() {
   const fullName = user ? `${user.firstName} ${user.lastName}` : "Secure user";
   const username = user?.username ? `@${user.username}` : "@sajhakurakani";
   const firstName = user?.firstName ?? "there";
+  const lastName = user?.lastName ?? "";
   const initials = user
     ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase()
     : "SK";
+  const bioText = user?.bio?.trim() || "";
   const joinedLabel = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString("en-US", {
         month: "long",
@@ -70,6 +70,20 @@ export default async function UserProfilePage() {
         username={username}
         initials={initials}
         joinedLabel={joinedLabel}
+        showEditButton={false}
+        actionSlot={
+          user ? (
+            <ProfileEditLauncher
+              csrfToken={csrfToken}
+              firstName={firstName}
+              lastName={lastName}
+              username={user.username}
+              bio={bioText}
+              profileUrl={user.profileUrl ?? null}
+              coverUrl={user.coverUrl ?? null}
+            />
+          ) : null
+        }
       />
 
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
