@@ -24,7 +24,7 @@ export default function Navbar({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(57,84,166,0.05),_transparent_24rem),radial-gradient(circle_at_bottom_right,_rgba(29,36,63,0.04),_transparent_28rem),linear-gradient(180deg,#ffffff_0%,#fcfcfd_56%,#ffffff_100%)] text-[#1d243f]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,145,77,0.16),_transparent_25rem),radial-gradient(circle_at_bottom_right,_rgba(255,110,69,0.1),_transparent_30rem),linear-gradient(180deg,#fffdfa_0%,#fff7f0_54%,#fffaf6_100%)] text-[#1d243f]">
       <CallCenter currentUser={user} />
 
       <div className="sticky top-0 z-50">
@@ -59,7 +59,7 @@ export default function Navbar({
         />
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-5 lg:px-6">
+      <div className="mx-auto w-full max-w-[1780px] px-2 py-4 sm:px-3 lg:px-4">
         <main className="pb-6 pt-4">
           {sessionMessage ? (
             <div className="mb-4 rounded-[18px] border border-[#efb697] bg-[#fff0e6] px-4 py-3 text-sm text-[#9c4f2e] shadow-[0_18px_34px_rgba(241,111,56,0.08)]">

@@ -101,49 +101,47 @@ export default function TopNavbar({
   const showDropdown = isOpen && query.trim().length > 0;
 
   return (
-    <header className="w-full border-b border-[#ee8e64] bg-[linear-gradient(135deg,#f68155_0%,#f3714d_100%)] text-white shadow-[0_12px_26px_rgba(241,111,56,0.14)] backdrop-blur">
-      <div className="mx-auto flex h-[80px] w-full max-w-[1600px] items-center gap-4 px-2 sm:px-3 lg:grid lg:grid-cols-[auto_minmax(320px,1fr)_auto_auto] lg:gap-5 lg:px-4">
-        <div className="topbar-left flex h-full min-w-0 items-center gap-2 self-center">
-          <div className="topbar-menu flex items-center justify-start">
-            <button
-              type="button"
-              onClick={onMenuClick}
-              aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-              aria-expanded={sidebarOpen}
-              className="inline-flex h-9 w-9 shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] border border-white/16 bg-white/10 transition hover:bg-white/14"
-            >
-              <span className="block h-0.5 w-3.5 rounded-full bg-white" />
-              <span className="block h-0.5 w-3.5 rounded-full bg-white" />
-              <span className="block h-0.5 w-3.5 rounded-full bg-white" />
-            </button>
-          </div>
+    <header className="w-full border-b border-[#efd8c8] bg-[radial-gradient(circle_at_top_left,rgba(255,145,77,0.2),transparent_26rem),radial-gradient(circle_at_bottom_right,rgba(255,110,69,0.12),transparent_30rem),linear-gradient(180deg,#fffdfa_0%,#fff6ee_52%,#fffaf6_100%)] text-[#1d243f] shadow-[0_14px_30px_rgba(128,84,53,0.08)] backdrop-blur">
+      <div className="mx-auto grid h-[80px] w-full max-w-[1600px] grid-cols-[auto_360px_1fr_auto_auto] items-center gap-4 px-2 sm:px-3 lg:gap-4 lg:px-4">
+        <div className="topbar-menu flex items-center justify-start self-center">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+            aria-expanded={sidebarOpen}
+            className="inline-flex h-9 w-9 shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] border border-[#ecd7ca] bg-white/80 transition hover:bg-white"
+          >
+            <span className="block h-0.5 w-3.5 rounded-full bg-[#1d243f]" />
+            <span className="block h-0.5 w-3.5 rounded-full bg-[#1d243f]" />
+            <span className="block h-0.5 w-3.5 rounded-full bg-[#1d243f]" />
+          </button>
+        </div>
 
-          <div className="topbar-head-logo flex shrink-0 items-center justify-center">
-            <Link
-              href="/user/home"
-              aria-label="SajhaKuraKani home"
-              className="relative flex h-14 w-14 items-center justify-center"
-            >
-              <span className="relative flex h-14 w-14 items-center justify-center overflow-visible">
-                <Image
-                  src="/brand/headLOGO.svg"
-                  alt="SajhaKuraKani mark"
-                  width={50}
-                  height={50}
-                  className="absolute left-1/2 top-[80%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 scale-[1.5] object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.75)]"
-                  priority
-                />
-              </span>
-            </Link>
-          </div>
+        <div className="topbar-head-logo relative h-full shrink-0 self-center">
+          <Link
+            href="/user/home"
+            aria-label="SajhaKuraKani home"
+            className="absolute left-1/2 top-0 flex -translate-x-1/2 items-start pt-0"
+          >
+            <span className="relative h-[64px] w-[320px]">
+              <Image
+                src="/brand/bodyLOGO.svg"
+                alt="SajhaKuraKani"
+                fill
+                sizes="320px"
+                className="object-contain object-left-top"
+                priority
+              />
+            </span>
+          </Link>
         </div>
 
         <form
           action="/user/search"
           ref={searchContainerRef}
-          className="topbar-search relative flex h-11 items-center self-center gap-2.5 rounded-[14px] border border-white/16 bg-white/12 px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+          className="topbar-search relative col-start-3 flex h-11 w-full max-w-[720px] justify-self-center items-center self-center gap-2.5 rounded-[14px] border border-[#ead9ce] bg-white/88 px-3.5 py-2 shadow-[0_10px_22px_rgba(128,84,53,0.05)]"
         >
-          <span className="text-sm text-white/75">⌕</span>
+          <span className="text-sm text-[#9a93a0]">⌕</span>
           <input
             type="search"
             name="search"
@@ -155,7 +153,7 @@ export default function TopNavbar({
               }
             }}
             placeholder="Search people..."
-            className="w-full bg-transparent text-[0.92rem] text-white outline-none placeholder:text-white/68"
+            className="w-full bg-transparent text-[0.92rem] text-[#1d243f] outline-none placeholder:text-[#b6adb5]"
           />
 
           {showDropdown ? (
@@ -210,7 +208,7 @@ export default function TopNavbar({
         </form>
 
         <div className="topbar-nav flex items-center self-center justify-start lg:justify-end">
-          <nav className="flex flex-wrap items-center gap-1.5 rounded-[14px] border border-white/14 bg-white/10 p-1">
+          <nav className="flex flex-wrap items-center gap-1.5 rounded-[14px] border border-[#ecd8cc] bg-white/76 p-1 shadow-[0_10px_22px_rgba(128,84,53,0.04)]">
             {topNavItems.map((item) => {
               const isActive = currentPath === item.href;
 
@@ -220,8 +218,8 @@ export default function TopNavbar({
                   href={item.href}
                   className={`rounded-[10px] px-3.5 py-1.5 text-[0.88rem] font-semibold transition ${
                     isActive
-                      ? "bg-white text-[#ef744b] shadow-[0_8px_20px_rgba(79,37,18,0.12)]"
-                      : "text-white/82 hover:bg-white/12 hover:text-white"
+                      ? "bg-[linear-gradient(135deg,#f68155_0%,#ef744b_100%)] text-white shadow-[0_8px_20px_rgba(241,111,56,0.16)]"
+                      : "text-[#687385] hover:bg-[#fff5ef] hover:text-[#1d243f]"
                   }`}
                 >
                   {item.label}
@@ -235,7 +233,7 @@ export default function TopNavbar({
           <Link
             href="/user/notifications"
             aria-label="Notifications"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-white/16 bg-white/10 text-base text-white transition hover:bg-white/14"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#ecd7ca] bg-white/80 text-base text-[#1d243f] transition hover:bg-white"
           >
             ◔
           </Link>
