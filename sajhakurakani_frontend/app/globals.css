@@ -258,6 +258,23 @@ body {
   color: rgba(23, 33, 58, 0.68);
 }
 
+.profile-tab-panel {
+  animation: profile-tab-enter 220ms ease-out;
+  transform-origin: top center;
+}
+
+@keyframes profile-tab-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .auth-actions {
   display: grid;
   gap: 0.9rem;

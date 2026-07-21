@@ -2,9 +2,11 @@ import { getUserProfileById } from "@/lib/api/auth";
 import { getPostEngagement, getUserPostsByUserId } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
 import FriendRelationshipActions from "../../_components/FriendRelationshipActions";
-import ProfileHeroCard from "../../_components/ProfileHeroCard";
+import ProfileFriendsCard from "../../_components/ProfileFriendsCard";
+import ProfilePhotosCard from "../../_components/ProfilePhotosCard";
 import ProfilePostsCard from "../../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../../_components/ProfileSidebarCard";
+import ProfileTabbedLayout from "../../_components/ProfileTabbedLayout";
 import type { ProfilePost } from "../../_components/profileTypes";
 
 type UserProfileByIdPageProps = {
@@ -68,10 +70,10 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
         year: "numeric",
       })
     : "July 2026";
+  const profilePhotos = profilePosts.flatMap((post) => post.media);
 
   return (
-    <div className="space-y-4">
-      <ProfileHeroCard
+    <ProfileTabbedLayout
         user={user}
         fullName={fullName}
         username={username}
@@ -90,10 +92,7 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
             />
           ) : null
         }
-      />
-
-      <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        sidebarSlot={
           <ProfileSidebarCard
             csrfToken={csrfToken}
             firstName={firstName}
@@ -103,9 +102,9 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
             bioText={bioText}
             allowComposer={false}
           />
-        </aside>
-
-        <ProfilePostsCard
+        }
+        postsSlot={
+          <ProfilePostsCard
           csrfToken={csrfToken}
           user={user}
           fullName={fullName}
@@ -113,7 +112,19 @@ export default async function UserProfileByIdPage({ params }: UserProfileByIdPag
           posts={profilePosts}
           canManagePosts={false}
         />
-      </section>
-    </div>
+        }
+        friendsSlot={
+          <ProfileFriendsCard
+          friends={[]}
+          emptyMessage="Friend connections are not shown on this profile yet."
+        />
+        }
+        photosSlot={
+          <ProfilePhotosCard
+          media={profilePhotos}
+          emptyMessage="No shared photos are available on this profile yet."
+        />
+        }
+      />
   );
 }

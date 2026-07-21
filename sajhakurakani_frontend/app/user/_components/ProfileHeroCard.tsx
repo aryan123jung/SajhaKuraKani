@@ -1,9 +1,16 @@
+"use client";
 /* eslint-disable @next/next/no-img-element */
 
 import type { ReactNode } from "react";
 import { ProfileViewUser } from "./profileTypes";
 
-const profileTabs = ["Posts", "About", "Friends", "Photos"] as const;
+export type ProfileTabKey = "posts" | "friends" | "photos";
+
+const profileTabs: Array<{ label: string; value: ProfileTabKey }> = [
+  { label: "Posts", value: "posts" },
+  { label: "Friends", value: "friends" },
+  { label: "Photos", value: "photos" },
+] as const;
 
 type ProfileHeroCardProps = {
   user: ProfileViewUser;
@@ -13,6 +20,8 @@ type ProfileHeroCardProps = {
   joinedLabel: string;
   showEditButton?: boolean;
   actionSlot?: ReactNode;
+  activeTab?: ProfileTabKey;
+  onTabChange?: (tab: ProfileTabKey) => void;
 };
 
 export default function ProfileHeroCard({
@@ -23,6 +32,8 @@ export default function ProfileHeroCard({
   joinedLabel,
   showEditButton = true,
   actionSlot,
+  activeTab = "posts",
+  onTabChange,
 }: ProfileHeroCardProps) {
   return (
     <section className="overflow-hidden rounded-[22px] border border-[#e6d8d0] bg-white/90 shadow-[0_18px_42px_rgba(128,84,53,0.08)]">
@@ -90,15 +101,16 @@ export default function ProfileHeroCard({
           <div className="flex flex-wrap items-center gap-2">
             {profileTabs.map((tab, index) => (
               <button
-                key={tab}
+                key={tab.label}
                 type="button"
+                onClick={() => onTabChange?.(tab.value)}
                 className={`rounded-[10px] px-4 py-2 text-[0.9rem] font-semibold transition ${
-                  index === 0
+                  activeTab === tab.value
                     ? "bg-[#fff1e8] text-[#ef744b]"
                     : "text-[#6c7383] hover:bg-[#f7f3ef]"
                 }`}
               >
-                {tab}
+                {tab.label}
               </button>
             ))}
           </div>

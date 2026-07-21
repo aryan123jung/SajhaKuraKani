@@ -1,23 +1,29 @@
 import { getCurrentUser } from "@/lib/api/auth";
+import { type FriendProfile, getFriendOverview } from "@/lib/api/friends";
 import { getCurrentUserPosts, getPostEngagement } from "@/lib/api/posts";
 import { getCsrfToken } from "@/lib/csrf";
 import ProfileEditLauncher from "../_components/ProfileEditLauncher";
-import ProfileHeroCard from "../_components/ProfileHeroCard";
+import ProfileFriendsCard from "../_components/ProfileFriendsCard";
+import ProfilePhotosCard from "../_components/ProfilePhotosCard";
 import ProfilePostsCard from "../_components/ProfilePostsCard";
 import ProfileSidebarCard from "../_components/ProfileSidebarCard";
+import ProfileTabbedLayout from "../_components/ProfileTabbedLayout";
 import type { ProfilePost } from "../_components/profileTypes";
 
 export default async function UserProfilePage() {
   let user = null;
   let profilePosts: ProfilePost[] = [];
+  let friends: FriendProfile[] = [];
 
   try {
-    const [userResponse, postsResponse] = await Promise.all([
+    const [userResponse, postsResponse, friendResponse] = await Promise.all([
       getCurrentUser(),
       getCurrentUserPosts(),
+      getFriendOverview(),
     ]);
 
     user = userResponse.data;
+    friends = friendResponse.data.friends;
     const engagementList = await Promise.all(
       postsResponse.data.map((post) => getPostEngagement(post._id))
     );
@@ -43,6 +49,7 @@ export default async function UserProfilePage() {
   } catch {
     user = null;
     profilePosts = [];
+    friends = [];
   }
 
   const csrfToken = await getCsrfToken();
@@ -61,10 +68,10 @@ export default async function UserProfilePage() {
         year: "numeric",
       })
     : "July 2026";
+  const profilePhotos = profilePosts.flatMap((post) => post.media);
 
   return (
-    <div className="space-y-4">
-      <ProfileHeroCard
+    <ProfileTabbedLayout
         user={user}
         fullName={fullName}
         username={username}
@@ -84,10 +91,7 @@ export default async function UserProfilePage() {
             />
           ) : null
         }
-      />
-
-      <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        sidebarSlot={
           <ProfileSidebarCard
             csrfToken={csrfToken}
             firstName={firstName}
@@ -97,9 +101,9 @@ export default async function UserProfilePage() {
             bioText={bioText}
             allowComposer={true}
           />
-        </aside>
-
-        <ProfilePostsCard
+        }
+        postsSlot={
+          <ProfilePostsCard
           csrfToken={csrfToken}
           user={user}
           fullName={fullName}
@@ -107,7 +111,19 @@ export default async function UserProfilePage() {
           posts={profilePosts}
           canManagePosts={true}
         />
-      </section>
-    </div>
+        }
+        friendsSlot={
+          <ProfileFriendsCard
+          friends={friends}
+          emptyMessage="You have not added any friends yet."
+        />
+        }
+        photosSlot={
+          <ProfilePhotosCard
+          media={profilePhotos}
+          emptyMessage="Your shared photos will appear here once you upload them in a post."
+        />
+        }
+      />
   );
 }
