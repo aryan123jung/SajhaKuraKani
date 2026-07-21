@@ -29,6 +29,10 @@ export interface IPost extends Document {
   commentPrivacy: PostInteractionPrivacy;
   sharePrivacy: PostInteractionPrivacy;
   media: IPostMedia[];
+  hiddenByAdmin: boolean;
+  hiddenAt?: Date;
+  hiddenReason?: string;
+  softDeletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,6 +119,26 @@ const postSchema = new Schema<IPost>(
         validator: (value: IPostMedia[]) => value.length <= 4,
         message: "A post can include up to 4 media files",
       },
+    },
+    hiddenByAdmin: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    hiddenAt: {
+      type: Date,
+      required: false,
+    },
+    hiddenReason: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 280,
+    },
+    softDeletedAt: {
+      type: Date,
+      required: false,
+      index: true,
     },
   },
   {

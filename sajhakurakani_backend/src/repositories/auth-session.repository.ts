@@ -34,6 +34,19 @@ export class AuthSessionRepository {
     }).sort({ lastUsedAt: -1, createdAt: -1 });
   }
 
+  async hasSeenIpHashForUser(userId: string, ipHash?: string) {
+    if (!ipHash) {
+      return false;
+    }
+
+    const session = await AuthSessionModel.findOne({
+      userId,
+      $or: [{ createdIpHash: ipHash }, { lastIpHash: ipHash }],
+    }).select("_id");
+
+    return Boolean(session);
+  }
+
   async rotateRefreshToken(
     sessionId: string,
     refreshTokenHash: string,

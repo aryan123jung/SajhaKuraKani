@@ -9,6 +9,7 @@ import {
 import { HttpError } from "../errors/http-error";
 import { IUser } from "../models/user.model";
 import { UserRepository } from "../repositories/user.repository";
+import { isAdminRole } from "../admin/admin.constants";
 
 declare global {
   namespace Express {
@@ -114,7 +115,7 @@ export const adminMiddleware = async (
       throw new HttpError(401, "Unauthorized: no user info");
     }
 
-    if (req.user.role !== "admin") {
+    if (!isAdminRole(req.user.role)) {
       throw new HttpError(403, "Forbidden: admin access only");
     }
 

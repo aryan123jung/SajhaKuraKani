@@ -11,6 +11,7 @@ export interface IAuthSession extends Document {
   lastUsedAt?: Date;
   revokedAt?: Date;
   revokedReason?: string;
+  sessionScope: "user" | "admin";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,6 +60,12 @@ const authSessionSchema = new Schema<IAuthSession>(
       type: String,
       required: false,
       maxlength: 120,
+    },
+    sessionScope: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+      index: true,
     },
   },
   {

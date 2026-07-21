@@ -43,6 +43,10 @@ export const ACCESS_TOKEN_EXPIRES_IN: string =
     process.env.ACCESS_TOKEN_EXPIRES_IN || '10m';
 export const REFRESH_TOKEN_EXPIRES_IN: string =
     process.env.REFRESH_TOKEN_EXPIRES_IN || '15d';
+export const ADMIN_ACCESS_TOKEN_EXPIRES_IN: string =
+    process.env.ADMIN_ACCESS_TOKEN_EXPIRES_IN || "30m";
+export const ADMIN_REFRESH_TOKEN_EXPIRES_IN: string =
+    process.env.ADMIN_REFRESH_TOKEN_EXPIRES_IN || "1h";
 export const JWT_ISSUER: string = process.env.JWT_ISSUER || 'sajhakurakani-api';
 export const JWT_AUDIENCE: string = process.env.JWT_AUDIENCE || 'sajhakurakani-client';
 export const TOTP_ENCRYPTION_KEY: string = process.env.TOTP_ENCRYPTION_KEY || "";
@@ -257,6 +261,64 @@ export const COMMENT_REPORT_RATE_LIMIT_WINDOW_MS: number = parseNumber(
 export const COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.COMMENT_REPORT_RATE_LIMIT_MAX_REQUESTS,
     10
+);
+export const ADMIN_REAUTH_TOKEN_EXPIRES_IN: string =
+    process.env.ADMIN_REAUTH_TOKEN_EXPIRES_IN || "10m";
+export const ADMIN_CONFIRMATION_WINDOW_MS: number = parseNumber(
+    process.env.ADMIN_CONFIRMATION_WINDOW_MS,
+    10 * 1000
+);
+export const ADMIN_ACTION_RATE_LIMIT_WINDOW_MS: number = parseNumber(
+    process.env.ADMIN_ACTION_RATE_LIMIT_WINDOW_MS,
+    60 * 60 * 1000
+);
+export const ADMIN_ACTION_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
+    process.env.ADMIN_ACTION_RATE_LIMIT_MAX_REQUESTS,
+    100
+);
+export const ADMIN_ALLOWED_HOSTS: string[] = (process.env.ADMIN_ALLOWED_HOSTS || "admin.sajhakurakani.com,localhost")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+export const ADMIN_ALLOWED_IPS: string[] = (process.env.ADMIN_ALLOWED_IPS || "127.0.0.1,::1")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+export const ADMIN_REQUIRE_WAF_VERIFICATION: boolean =
+    process.env.ADMIN_REQUIRE_WAF_VERIFICATION === "true";
+export const ADMIN_WAF_HEADER_NAME: string =
+    process.env.ADMIN_WAF_HEADER_NAME || "x-admin-waf-verified";
+export const ADMIN_WAF_HEADER_VALUE: string =
+    process.env.ADMIN_WAF_HEADER_VALUE || "true";
+export const ADMIN_REQUIRE_CLIENT_CERT: boolean =
+    process.env.ADMIN_REQUIRE_CLIENT_CERT === "true";
+export const ADMIN_CLIENT_CERT_HEADER_NAME: string =
+    process.env.ADMIN_CLIENT_CERT_HEADER_NAME || "x-client-cert-verified";
+export const ADMIN_CLIENT_CERT_HEADER_VALUE: string =
+    process.env.ADMIN_CLIENT_CERT_HEADER_VALUE || "true";
+export const ADMIN_REQUIRE_DEVICE_POSTURE: boolean =
+    process.env.ADMIN_REQUIRE_DEVICE_POSTURE === "true";
+export const ADMIN_DEVICE_POSTURE_HEADER_NAME: string =
+    process.env.ADMIN_DEVICE_POSTURE_HEADER_NAME || "x-device-trusted";
+export const ADMIN_DEVICE_POSTURE_HEADER_VALUE: string =
+    process.env.ADMIN_DEVICE_POSTURE_HEADER_VALUE || "true";
+export const ADMIN_AUDIT_DB_NAME: string =
+    process.env.ADMIN_AUDIT_DB_NAME || "sajhakurakani_admin_audit";
+export const ADMIN_ALERT_AFTER_HOUR_UTC_START: number = parseNumber(
+    process.env.ADMIN_ALERT_AFTER_HOUR_UTC_START,
+    0
+);
+export const ADMIN_ALERT_AFTER_HOUR_UTC_END: number = parseNumber(
+    process.env.ADMIN_ALERT_AFTER_HOUR_UTC_END,
+    5
+);
+export const ADMIN_MASS_ACTION_THRESHOLD: number = parseNumber(
+    process.env.ADMIN_MASS_ACTION_THRESHOLD,
+    50
+);
+export const ADMIN_MASS_ACTION_WINDOW_MS: number = parseNumber(
+    process.env.ADMIN_MASS_ACTION_WINDOW_MS,
+    5 * 60 * 1000
 );
 export const COMMENT_DUPLICATE_WINDOW_MS: number = parseNumber(
     process.env.COMMENT_DUPLICATE_WINDOW_MS,

@@ -11,6 +11,9 @@ export interface IPostComment extends Document {
   isDeleted: boolean;
   deletedAt?: Date;
   deletedBy?: mongoose.Types.ObjectId;
+  hiddenByAdmin: boolean;
+  hiddenAt?: Date;
+  hiddenReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,6 +74,21 @@ const postCommentSchema = new Schema<IPostComment>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: false,
+    },
+    hiddenByAdmin: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    hiddenAt: {
+      type: Date,
+      required: false,
+    },
+    hiddenReason: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 280,
     },
   },
   {

@@ -11,6 +11,8 @@ import { UserRepository } from "../repositories/user.repository";
 import jwt from "jsonwebtoken";
 import {
   ACCESS_TOKEN_EXPIRES_IN,
+  ADMIN_ACCESS_TOKEN_EXPIRES_IN,
+  ADMIN_REFRESH_TOKEN_EXPIRES_IN,
   AUTH_LOCK_WINDOW_MS,
   AUTH_MAX_FAILED_ATTEMPTS,
   CLIENT_URL,
@@ -53,6 +55,10 @@ import { CallService } from "./call.service";
 import { decryptText, encryptText } from "../utils/crypto.util";
 import { consumeOAuthState, createOAuthState } from "../utils/oauth.util";
 import { generateOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.util";
+import { assertAdminTotpEnabled } from "../admin/admin.helpers";
+import { isAdminRole } from "../admin/admin.constants";
+import { AdminAuditRepository } from "../repositories/admin/admin-audit.repository";
+import { AdminSecurityAlertRepository } from "../repositories/admin/admin-security-alert.repository";
 
 const userRepository = new UserRepository();
 const authSessionRepository = new AuthSessionRepository();
@@ -60,6 +66,8 @@ const emailVerificationTokenRepository = new EmailVerificationTokenRepository();
 const passwordResetTokenRepository = new PasswordResetTokenRepository();
 const loginDefenseSecurity = new LoginDefenseSecurity();
 const callService = new CallService();
+const adminAuditRepository = new AdminAuditRepository();
+const adminSecurityAlertRepository = new AdminSecurityAlertRepository();
 const PASSWORD_HASH_ROUNDS = 12;
 const PASSWORD_TOTP_CHALLENGE_EXPIRES_IN = "5m";
 const PASSWORD_TOTP_CHALLENGE_TYPE = "password_login_totp";
@@ -79,6 +87,7 @@ const FRIEND_OUTGOING_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 const FRIEND_OUTGOING_REQUEST_HOURLY_WINDOW_MS = 60 * 60 * 1000;
 const FRIEND_REQUEST_MIN_PROCESSING_MS = 120;
 const PROFILE_MEDIA_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ADMIN_PASSWORD_MIN_LENGTH = 12;
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -117,7 +126,35 @@ const sanitizeUser = (user: IUser) => {
   delete userObject.passwordChangedAt;
   delete userObject.resetPasswordTokenHash;
   delete userObject.resetPasswordExpiresAt;
+  delete userObject.mustChangePassword;
+  delete userObject.suspendedUntil;
+  delete userObject.suspensionReason;
   return userObject;
+};
+
+const getAccessTokenExpiryForUser = (user: IUser) =>
+  isAdminRole(user.role) ? ADMIN_ACCESS_TOKEN_EXPIRES_IN : ACCESS_TOKEN_EXPIRES_IN;
+
+const getRefreshTokenExpiryForUser = (user: IUser) =>
+  isAdminRole(user.role) ? ADMIN_REFRESH_TOKEN_EXPIRES_IN : REFRESH_TOKEN_EXPIRES_IN;
+
+const assertAdminPasswordPolicyForRole = (password: string, role: IUser["role"]) => {
+  if (!isAdminRole(role)) {
+    return;
+  }
+
+  if (
+    password.length < ADMIN_PASSWORD_MIN_LENGTH ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    throw new HttpError(
+      400,
+      "Admin passwords must be at least 12 characters and include uppercase, lowercase, a number, and a special character."
+    );
+  }
 };
 
 const FRIEND_PROFILE_SELECT =
@@ -205,6 +242,10 @@ const hashSessionToken = (token: string) =>
 const hashResetMetadata = (value?: string) =>
   value ? crypto.createHash("sha256").update(value).digest("hex") : undefined;
 const truncateUserAgent = (value?: string) => value?.slice(0, 512);
+const isSuspiciousAdminUserAgent = (value?: string) => {
+  const normalizedValue = value?.toLowerCase() || "";
+  return /(iphone|ipad|android|mobile|blackberry|opera mini)/i.test(normalizedValue);
+};
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const normalizeUsername = (username: string) => username.trim().toLowerCase();
@@ -548,7 +589,7 @@ export class UserService {
 
     return jwt.sign(payload, JWT_PRIVATE_KEY, {
       algorithm: JWT_ALGORITHM,
-      expiresIn: ACCESS_TOKEN_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+      expiresIn: getAccessTokenExpiryForUser(user) as jwt.SignOptions["expiresIn"],
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
       subject: user._id.toString(),
@@ -569,7 +610,7 @@ export class UserService {
       JWT_PRIVATE_KEY,
       {
         algorithm: JWT_ALGORITHM,
-        expiresIn: REFRESH_TOKEN_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+        expiresIn: getRefreshTokenExpiryForUser(user) as jwt.SignOptions["expiresIn"],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
         subject: user._id.toString(),
@@ -619,17 +660,50 @@ export class UserService {
     const refreshTokenHash = hashSessionToken(refreshToken);
     const ipHash = hashResetMetadata(requestIp);
     const sanitizedUserAgent = truncateUserAgent(userAgent);
+    const isKnownIp = isAdminRole(user.role)
+      ? await authSessionRepository.hasSeenIpHashForUser(user._id.toString(), ipHash)
+      : true;
 
-    // session management
+    // layer2 - session creation with shorter admin session scope
     await authSessionRepository.createSession(sessionId, {
       userId: user._id,
       refreshTokenHash,
-      expiresAt: resolveExpiryDate(REFRESH_TOKEN_EXPIRES_IN),
+      expiresAt: resolveExpiryDate(getRefreshTokenExpiryForUser(user)),
       createdIpHash: ipHash,
       lastIpHash: ipHash,
       userAgent: sanitizedUserAgent,
       lastUsedAt: new Date(),
+      sessionScope: isAdminRole(user.role) ? "admin" : "user",
     });
+
+    if (isAdminRole(user.role) && ipHash && !isKnownIp) {
+      // layer3 - alert when admin signs in from a new IP fingerprint
+      await adminSecurityAlertRepository.createAlert({
+        adminUserId: user._id,
+        type: "new_ip_login",
+        severity: "high",
+        ipAddress: requestIp,
+        userAgent: sanitizedUserAgent,
+        details: {
+          sessionId: sessionId.toString(),
+        },
+      });
+    }
+
+    if (isAdminRole(user.role) && isSuspiciousAdminUserAgent(sanitizedUserAgent)) {
+      // layer3 - alert on suspicious admin device/user-agent patterns
+      await adminSecurityAlertRepository.createAlert({
+        adminUserId: user._id,
+        type: "suspicious_user_agent",
+        severity: "high",
+        ipAddress: requestIp,
+        userAgent: sanitizedUserAgent,
+        details: {
+          sessionId: sessionId.toString(),
+          reason: "mobile_or_unusual_admin_device",
+        },
+      });
+    }
 
     return {
       accessToken: this.createAccessTokenForUser(user, sessionId.toString()),
@@ -651,7 +725,7 @@ export class UserService {
     await authSessionRepository.rotateRefreshToken(
       sessionId,
       refreshTokenHash,
-      resolveExpiryDate(REFRESH_TOKEN_EXPIRES_IN),
+      resolveExpiryDate(getRefreshTokenExpiryForUser(user)),
       hashResetMetadata(requestIp),
       truncateUserAgent(userAgent)
     );
@@ -691,13 +765,28 @@ export class UserService {
     }
 
     if (isLocked) {
-      // account lockout
+      // layer2 - account lockout after repeated failures
       this.logSecurityEvent("account_locked_after_failed_sign_in_attempts", {
         userId: user._id.toString(),
         email: user.email,
         failedLoginAttempts,
         ipAddress: requestIp,
       });
+
+      if (isAdminRole(user.role)) {
+        // layer3 - alert when an admin account gets locked out
+        await adminSecurityAlertRepository.createAlert({
+          adminUserId: user._id,
+          type: "failed_login_lockout",
+          severity: "critical",
+          ipAddress: requestIp,
+          details: {
+            failedLoginAttempts,
+            email: user.email,
+          },
+        });
+      }
+
       throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
@@ -938,6 +1027,7 @@ export class UserService {
 
     userToSave.email = normalizedEmail;
     userToSave.username = normalizedUsername;
+    assertAdminPasswordPolicyForRole(userToSave.password, "user");
     userToSave.password = await hashPassword(userToSave.password);
 
     const newUser = await userRepository.createUser({
@@ -987,6 +1077,10 @@ export class UserService {
       throw new HttpError(423, ACCOUNT_LOCKED_MESSAGE);
     }
 
+    if (user.suspendedUntil && user.suspendedUntil.getTime() > Date.now()) {
+      throw new HttpError(403, "This account is suspended");
+    }
+
     const validPassword = await bcryptjs.compare(loginData.password, user.password);
 
     if (!validPassword) {
@@ -1002,6 +1096,12 @@ export class UserService {
       });
       throw new HttpError(403, EMAIL_VERIFICATION_REQUIRED_MESSAGE);
     }
+
+    if (user.mustChangePassword) {
+      throw new HttpError(403, "This account must change its password before signing in.");
+    }
+
+    assertAdminTotpEnabled(user);
 
     if (user.totpEnabled) {
       if (!user.totpSecretEncrypted) {
@@ -1022,6 +1122,19 @@ export class UserService {
     await this.clearFailedAuthAttempts(user);
 
     const session = await this.createAuthSession(user, requestIp, userAgent);
+
+    if (isAdminRole(user.role)) {
+      // layer4 - admin login audit event
+      await adminAuditRepository.createAuditLog({
+        adminUserId: user._id,
+        adminRole: user.role,
+        action: "admin.login",
+        targetType: "admin-session",
+        targetId: session.sessionId,
+        ipAddress: requestIp,
+        result: "success",
+      });
+    }
 
     return {
       requiresTotp: false as const,
@@ -1049,6 +1162,12 @@ export class UserService {
     const googleProfile = await this.fetchGoogleUserProfile(tokenResponse.access_token);
     const user = await this.findOrCreateGoogleUser(googleProfile);
 
+    if (user.mustChangePassword) {
+      throw new HttpError(403, "This account must change its password before signing in.");
+    }
+
+    assertAdminTotpEnabled(user);
+
     if (user.totpEnabled) {
       return {
         requiresTotp: true as const,
@@ -1062,6 +1181,19 @@ export class UserService {
     }
 
     const session = await this.createAuthSession(user, requestIp, userAgent);
+
+    if (isAdminRole(user.role)) {
+      // layer4 - admin login audit event
+      await adminAuditRepository.createAuditLog({
+        adminUserId: user._id,
+        adminRole: user.role,
+        action: "admin.login",
+        targetType: "admin-session",
+        targetId: session.sessionId,
+        ipAddress: requestIp,
+        result: "success",
+      });
+    }
 
     return {
       requiresTotp: false as const,
@@ -1105,6 +1237,19 @@ export class UserService {
     await this.clearFailedAuthAttempts(user);
     const session = await this.createAuthSession(user, requestIp, userAgent);
 
+    if (isAdminRole(user.role)) {
+      // layer4 - admin login audit event
+      await adminAuditRepository.createAuditLog({
+        adminUserId: user._id,
+        adminRole: user.role,
+        action: "admin.login",
+        targetType: "admin-session",
+        targetId: session.sessionId,
+        ipAddress: requestIp,
+        result: "success",
+      });
+    }
+
     return {
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -1146,6 +1291,19 @@ export class UserService {
     await this.clearFailedAuthAttempts(user);
     const session = await this.createAuthSession(user, requestIp, userAgent);
 
+    if (isAdminRole(user.role)) {
+      // layer4 - admin login audit event
+      await adminAuditRepository.createAuditLog({
+        adminUserId: user._id,
+        adminRole: user.role,
+        action: "admin.login",
+        targetType: "admin-session",
+        targetId: session.sessionId,
+        ipAddress: requestIp,
+        result: "success",
+      });
+    }
+
     return {
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -1178,6 +1336,18 @@ export class UserService {
     const user = await userRepository.getUserById(decodedToken.id, true);
     if (!user) {
       await authSessionRepository.revokeSession(session._id.toString(), "user_not_found");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    if (user.isBanned) {
+      // layer7 - blocked account cannot keep refreshing sessions
+      await authSessionRepository.revokeSession(session._id.toString(), "user_banned");
+      throw new HttpError(401, "Refresh token is invalid or expired");
+    }
+
+    if (user.suspendedUntil && user.suspendedUntil.getTime() > Date.now()) {
+      // layer7 - suspended account cannot keep refreshing sessions
+      await authSessionRepository.revokeSession(session._id.toString(), "user_suspended");
       throw new HttpError(401, "Refresh token is invalid or expired");
     }
 
@@ -1227,8 +1397,25 @@ export class UserService {
       throw new HttpError(404, "Session not found");
     }
 
+    const user = await userRepository.getUserById(userId, true);
     await authSessionRepository.revokeSession(currentSessionId, "user_logout");
     await callService.terminateCallsForSession(userId, currentSessionId, "logout");
+
+    if (user && isAdminRole(user.role)) {
+      // layer4 - admin logout audit event
+      await adminAuditRepository.createAuditLog({
+        adminUserId: user._id,
+        adminRole: user.role,
+        action: "admin.logout",
+        targetType: "admin-session",
+        targetId: currentSessionId,
+        result: "success",
+        metadata: {
+          sessionId: currentSessionId,
+          source: "current_session_logout",
+        },
+      });
+    }
   }
 
   async revokeSessionById(userId: string, sessionId: string, currentSessionId?: string) {
@@ -1254,6 +1441,7 @@ export class UserService {
     const revokedSessionIds = activeSessions
       .map((session) => session._id.toString())
       .filter((sessionId) => sessionId !== currentSessionId);
+    const user = await userRepository.getUserById(userId, true);
 
     await authSessionRepository.revokeAllSessionsForUser(
       userId,
@@ -1263,6 +1451,22 @@ export class UserService {
 
     for (const sessionId of revokedSessionIds) {
       await callService.terminateCallsForSession(userId, sessionId, "session_revoked");
+
+      if (user && isAdminRole(user.role)) {
+        // layer4 - admin logout audit event for revoked parallel sessions
+        await adminAuditRepository.createAuditLog({
+          adminUserId: user._id,
+          adminRole: user.role,
+          action: "admin.logout",
+          targetType: "admin-session",
+          targetId: sessionId,
+          result: "success",
+          metadata: {
+            sessionId,
+            source: "other_sessions_revoked",
+          },
+        });
+      }
     }
   }
 

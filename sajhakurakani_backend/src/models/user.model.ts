@@ -28,6 +28,9 @@ export interface IUser extends Document {
   blockedUsers: mongoose.Types.ObjectId[];
   isBanned: boolean;
   bannedAt?: Date;
+  suspendedUntil?: Date;
+  suspensionReason?: string;
+  mustChangePassword: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,6 +85,9 @@ const userMongoSchema = new Schema<IUser>(
     },
     isBanned: { type: Boolean, default: false, index: true },
     bannedAt: { type: Date, required: false },
+    suspendedUntil: { type: Date, required: false, index: true },
+    suspensionReason: { type: String, required: false, trim: true, maxlength: 280 },
+    mustChangePassword: { type: Boolean, default: false, select: false },
   },
   {
     timestamps: true,
@@ -101,6 +107,9 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.blockedUsers;
         delete sanitized.isBanned;
         delete sanitized.bannedAt;
+        delete sanitized.suspendedUntil;
+        delete sanitized.suspensionReason;
+        delete sanitized.mustChangePassword;
         return ret;
       },
     },
@@ -120,6 +129,9 @@ const userMongoSchema = new Schema<IUser>(
         delete sanitized.blockedUsers;
         delete sanitized.isBanned;
         delete sanitized.bannedAt;
+        delete sanitized.suspendedUntil;
+        delete sanitized.suspensionReason;
+        delete sanitized.mustChangePassword;
         return ret;
       },
     },

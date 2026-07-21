@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.routes';
 import callRoutes from './routes/call.routes';
 import messageRoutes from './routes/message.routes';
 import postRoutes from './routes/post.routes';
+import adminRoutes from './routes/admin/admin.routes';
 import { HttpError } from './errors/http-error';
 import {
     CORS_ORIGINS,
@@ -97,6 +98,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/admin', adminRoutes);
 
 
 app.use((err: Error, req: Request, res: Response, next: Function) => {
