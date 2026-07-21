@@ -7,6 +7,7 @@ export interface IUser extends Document {
   lastName: string;
   email: string;
   username: string;
+  bio?: string;
   password: string;
   role: "user" | "admin";
   profileUrl?: string;
@@ -54,6 +55,7 @@ const userMongoSchema = new Schema<IUser>(
       maxlength: 30,
       index: true,
     },
+    bio: { type: String, required: false, trim: true, maxlength: 280 },
     password: { type: String, required: true, select: false },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     profileUrl: { type: String, required: false, trim: true, maxlength: 255 },

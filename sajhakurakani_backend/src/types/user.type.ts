@@ -22,6 +22,7 @@ export const UserSchema = z.object({
     .min(3)
     .max(30)
     .regex(/^[a-z0-9_.-]+$/, "Username can only contain letters, numbers, dots, dashes, and underscores"),
+  bio: z.string().trim().max(280).optional(),
   role: z.enum(["user", "admin"]).optional().default("user"),
   profileUrl: z.string().trim().max(255).optional(),
   coverUrl: z.string().trim().max(255).optional(),

@@ -4,7 +4,7 @@ import { IUser, UserModel } from "../models/user.model";
 const SENSITIVE_USER_SELECT =
     "+password +failedLoginAttempts +lockUntil +passwordChangedAt +resetPasswordTokenHash +resetPasswordExpiresAt +totpSecretEncrypted +totpTempSecretEncrypted +oauthSubject";
 const SAFE_SEARCH_USER_SELECT =
-    "firstName lastName username profileUrl coverUrl createdAt updatedAt";
+    "firstName lastName username bio profileUrl coverUrl createdAt updatedAt";
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

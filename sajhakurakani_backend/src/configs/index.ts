@@ -280,7 +280,7 @@ export const MESSAGE_LIST_RATE_LIMIT_WINDOW_MS: number = parseNumber(
 );
 export const MESSAGE_LIST_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.MESSAGE_LIST_RATE_LIMIT_MAX_REQUESTS,
-    120
+    300
 );
 export const MESSAGE_SEND_RATE_LIMIT_WINDOW_MS: number = parseNumber(
     process.env.MESSAGE_SEND_RATE_LIMIT_WINDOW_MS,
@@ -288,7 +288,7 @@ export const MESSAGE_SEND_RATE_LIMIT_WINDOW_MS: number = parseNumber(
 );
 export const MESSAGE_SEND_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.MESSAGE_SEND_RATE_LIMIT_MAX_REQUESTS,
-    30
+    60
 );
 export const MESSAGE_SEND_HOURLY_RATE_LIMIT_WINDOW_MS: number = parseNumber(
     process.env.MESSAGE_SEND_HOURLY_RATE_LIMIT_WINDOW_MS,
@@ -296,7 +296,7 @@ export const MESSAGE_SEND_HOURLY_RATE_LIMIT_WINDOW_MS: number = parseNumber(
 );
 export const MESSAGE_SEND_HOURLY_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.MESSAGE_SEND_HOURLY_RATE_LIMIT_MAX_REQUESTS,
-    300
+    1000
 );
 export const MESSAGE_READ_RATE_LIMIT_WINDOW_MS: number = parseNumber(
     process.env.MESSAGE_READ_RATE_LIMIT_WINDOW_MS,
@@ -304,7 +304,7 @@ export const MESSAGE_READ_RATE_LIMIT_WINDOW_MS: number = parseNumber(
 );
 export const MESSAGE_READ_RATE_LIMIT_MAX_REQUESTS: number = parseNumber(
     process.env.MESSAGE_READ_RATE_LIMIT_MAX_REQUESTS,
-    180
+    600
 );
 export const MESSAGE_DUPLICATE_WINDOW_MS: number = parseNumber(
     process.env.MESSAGE_DUPLICATE_WINDOW_MS,

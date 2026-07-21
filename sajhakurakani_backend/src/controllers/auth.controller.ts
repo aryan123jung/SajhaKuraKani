@@ -291,16 +291,7 @@ export class AuthController {
 
             const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
 
-            // store only filename
-            if (files?.profileUrl?.[0]) {
-                parsedData.data.profileUrl = files.profileUrl[0].filename;
-            }
-
-            if (files?.coverUrl?.[0]) {
-                parsedData.data.coverUrl = files.coverUrl[0].filename;
-            }
-
-            const updatedUser = await userService.updateUser(userId, parsedData.data);
+            const updatedUser = await userService.updateUser(userId, parsedData.data, files);
             if (!updatedUser) {
                 return res.status(404).json({ success: false, message: "User not found" });
             }

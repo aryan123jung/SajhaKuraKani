@@ -42,6 +42,7 @@ export const UpdateUserDto = UserSchema.pick({
     firstName: true,
     lastName: true,
     username: true,
+    bio: true,
     email: true,
     profileUrl: true,
     coverUrl: true

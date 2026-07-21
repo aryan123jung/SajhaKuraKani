@@ -78,6 +78,7 @@ const ALREADY_FRIENDS_MESSAGE = "You are already connected as friends.";
 const FRIEND_OUTGOING_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 const FRIEND_OUTGOING_REQUEST_HOURLY_WINDOW_MS = 60 * 60 * 1000;
 const FRIEND_REQUEST_MIN_PROCESSING_MS = 120;
+const PROFILE_MEDIA_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -120,7 +121,7 @@ const sanitizeUser = (user: IUser) => {
 };
 
 const FRIEND_PROFILE_SELECT =
-  "firstName lastName username profileUrl coverUrl createdAt updatedAt";
+  "firstName lastName username bio profileUrl coverUrl createdAt updatedAt";
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -228,6 +229,12 @@ const buildGoogleAuthUrl = (state: string) => {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 };
 
+const removeUploadedFileIfPresent = (filePath: string) => {
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
 const resolveExpiryDate = (expiresIn: string) => {
   const match = expiresIn.trim().match(/^(\d+)([smhd])$/i);
   if (!match) {
@@ -247,6 +254,40 @@ const resolveExpiryDate = (expiresIn: string) => {
 };
 
 export class UserService {
+  private async getMutualFriendProfiles(
+    currentUser: IUser,
+    targetUser: IUser,
+    limit = 6
+  ) {
+    const currentFriendIds = new Set(
+      (currentUser.friends || []).map((friendId) => friendId.toString())
+    );
+    const mutualFriendIds = (targetUser.friends || [])
+      .map((friendId) => friendId.toString())
+      .filter((friendId) => currentFriendIds.has(friendId));
+
+    if (mutualFriendIds.length === 0) {
+      return {
+        mutualFriendsCount: 0,
+        mutualFriends: [],
+      };
+    }
+
+    const mutualFriends = await UserModel.find({
+      _id: { $in: mutualFriendIds.slice(0, limit) },
+      role: "user",
+      emailVerified: true,
+      isBanned: false,
+    })
+      .select(FRIEND_PROFILE_SELECT)
+      .sort({ firstName: 1, lastName: 1 });
+
+    return {
+      mutualFriendsCount: mutualFriendIds.length,
+      mutualFriends: mutualFriends.map(toFriendProfile),
+    };
+  }
+
   async backfillEmailVerificationState() {
     return userRepository.backfillEmailVerificationState();
   }
@@ -1262,17 +1303,28 @@ export class UserService {
             pendingRequestId: null,
           };
 
+    const { mutualFriendsCount, mutualFriends } =
+      user._id.toString() === currentUserId
+        ? {
+            mutualFriendsCount: 0,
+            mutualFriends: [],
+          }
+        : await this.getMutualFriendProfiles(currentUser, user);
+
     return {
       _id: user._id.toString(),
       firstName: user.firstName,
       lastName: user.lastName,
       username: user.username,
+      bio: user.bio || "",
       profileUrl: user.profileUrl || null,
       coverUrl: user.coverUrl || null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       relationshipStatus: relationshipState.relationshipStatus,
       pendingRequestId: relationshipState.pendingRequestId,
+      mutualFriendsCount,
+      mutualFriends,
     };
   }
 
@@ -1801,21 +1853,33 @@ export class UserService {
     }
 
     const updatePayload: UpdateUserDto = { ...data };
+    const profileFile = files?.profileUrl?.[0];
+    const coverFile = files?.coverUrl?.[0];
 
-    if (files?.profileUrl?.[0]) {
-      if (user.profileUrl) {
-        const oldPath = path.resolve(process.cwd(), "uploads/profile", user.profileUrl);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      updatePayload.profileUrl = files.profileUrl[0].filename;
+    if (profileFile && profileFile.size > PROFILE_MEDIA_MAX_FILE_SIZE_BYTES) {
+      removeUploadedFileIfPresent(profileFile.path);
+      throw new HttpError(400, "Profile image must be 10 MB or smaller");
     }
 
-    if (files?.coverUrl?.[0]) {
+    if (coverFile && coverFile.size > PROFILE_MEDIA_MAX_FILE_SIZE_BYTES) {
+      removeUploadedFileIfPresent(coverFile.path);
+      throw new HttpError(400, "Cover image must be 10 MB or smaller");
+    }
+
+    if (profileFile) {
+      if (user.profileUrl) {
+        const oldPath = path.resolve(process.cwd(), "uploads/profile", user.profileUrl);
+        removeUploadedFileIfPresent(oldPath);
+      }
+      updatePayload.profileUrl = profileFile.filename;
+    }
+
+    if (coverFile) {
       if (user.coverUrl) {
         const oldPath = path.resolve(process.cwd(), "uploads/cover", user.coverUrl);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        removeUploadedFileIfPresent(oldPath);
       }
-      updatePayload.coverUrl = files.coverUrl[0].filename;
+      updatePayload.coverUrl = coverFile.filename;
     }
 
     if (updatePayload.email) {
