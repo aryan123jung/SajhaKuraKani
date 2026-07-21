@@ -2,7 +2,7 @@ import "server-only";
 
 import axios, { AxiosHeaders } from "axios";
 import https from "https";
-import { getAuthToken } from "../cookie";
+import { getAdminReauthToken, getAuthToken } from "../cookie";
 import { getCsrfToken } from "../csrf";
 import { CSRF_COOKIE_NAME } from "../security-constants";
 
@@ -40,6 +40,14 @@ axiosInstance.interceptors.request.use(
 
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    if ((config.url || "").startsWith("/api/admin")) {
+      const adminReauthToken = await getAdminReauthToken();
+
+      if (adminReauthToken) {
+        headers.set("X-Admin-Reauth-Token", adminReauthToken);
+      }
     }
 
     if (STATE_CHANGING_METHODS.has((config.method ?? "get").toLowerCase())) {

@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/api/auth";
 import { getAuthToken } from "@/lib/cookie";
 import { getCsrfToken } from "@/lib/csrf";
+import { redirect } from "next/navigation";
 import Navbar from "./_components/navbar";
 
 export default async function UserLayout({
@@ -17,6 +18,9 @@ export default async function UserLayout({
     try {
       const response = await getCurrentUser();
       user = response.data;
+      if (user.role === "admin") {
+        redirect("/admin");
+      }
     } catch (error) {
       sessionMessage =
         error instanceof Error

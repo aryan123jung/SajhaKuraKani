@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import {
+  ADMIN_REAUTH_COOKIE_NAME,
   AUTH_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
   TWO_FACTOR_PRE_AUTH_COOKIE_NAME,
@@ -62,6 +63,28 @@ export async function clearRefreshToken() {
   cookieStore.delete(REFRESH_COOKIE_NAME);
 }
 
+export async function getAdminReauthToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get(ADMIN_REAUTH_COOKIE_NAME)?.value ?? null;
+}
+
+export async function setAdminReauthToken(token: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(ADMIN_REAUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: TEN_MINUTES_IN_SECONDS,
+    priority: "high",
+  });
+}
+
+export async function clearAdminReauthToken() {
+  const cookieStore = await cookies();
+  cookieStore.delete(ADMIN_REAUTH_COOKIE_NAME);
+}
+
 export async function setSessionTokens(accessToken: string, refreshToken: string) {
   await setAuthToken(accessToken);
   await setRefreshToken(refreshToken);
@@ -70,6 +93,7 @@ export async function setSessionTokens(accessToken: string, refreshToken: string
 export async function clearSessionTokens() {
   await clearAuthToken();
   await clearRefreshToken();
+  await clearAdminReauthToken();
 }
 
 export async function getTwoFactorPreAuthToken() {

@@ -28,6 +28,9 @@ import type {
   VerifyTotpActionState,
 } from "./auth-state";
 
+const getPostAuthRedirectPath = (role: "user" | "admin" | undefined) =>
+  role === "admin" ? "/admin" : "/user/home";
+
 export async function loginAction(
   _previousState: LoginActionState,
   formData: FormData
@@ -75,6 +78,7 @@ export async function loginAction(
       response.accessToken as string,
       response.refreshToken as string
     );
+    redirect(getPostAuthRedirectPath(response.data.user.role));
   } catch (error) {
     unstable_rethrow(error);
 
@@ -89,7 +93,6 @@ export async function loginAction(
     };
   }
 
-  redirect("/");
 }
 
 export async function startGoogleLoginAction(formData: FormData) {
@@ -184,6 +187,7 @@ export async function completeTotpLoginAction(
       response.refreshToken as string
     );
     await clearTwoFactorPreAuthToken();
+    redirect(getPostAuthRedirectPath(response.data.role));
   } catch (error) {
     return {
       success: false,
@@ -195,7 +199,6 @@ export async function completeTotpLoginAction(
     };
   }
 
-  redirect("/");
 }
 
 export async function cancelTotpLoginAction(formData: FormData) {
