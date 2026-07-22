@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/api/auth";
 import { getAuthToken } from "@/lib/cookie";
 import { getCsrfToken } from "@/lib/csrf";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import Navbar from "./_components/navbar";
 
 export default async function UserLayout({
@@ -22,6 +22,7 @@ export default async function UserLayout({
         redirect("/admin");
       }
     } catch (error) {
+      unstable_rethrow(error);
       sessionMessage =
         error instanceof Error
           ? error.message

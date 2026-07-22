@@ -91,7 +91,7 @@ export default function HomeProfileCard({
           View profile
         </Link>
         <Link
-          href="/settings"
+          href="/user/settings"
           className="flex-1 rounded-lg border border-[#edd8cb] bg-[#fff8f3] px-3 py-2 text-center text-xs font-semibold text-[#526077] hover:bg-white transition-colors"
         >
           Settings

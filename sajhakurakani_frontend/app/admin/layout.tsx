@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import AdminShell from "./_components/AdminShell";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getAuthToken } from "@/lib/cookie";
@@ -30,7 +30,8 @@ export default async function AdminLayout({
         {children}
       </AdminShell>
     );
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     redirect("/login");
   }
 }

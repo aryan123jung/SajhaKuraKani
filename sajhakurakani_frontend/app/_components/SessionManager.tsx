@@ -16,6 +16,9 @@ const formatDate = (value: string) =>
     timeStyle: "short",
   });
 
+const getSessionLabel = (current: boolean) =>
+  current ? "This device session" : "Saved device session";
+
 export default function SessionManager({
   csrfToken,
   sessions,
@@ -24,16 +27,16 @@ export default function SessionManager({
   const otherSessionsCount = sessions.filter((session) => !session.current).length;
 
   return (
-    <section className="rounded-[32px] border border-white/10 bg-white/5 p-6 sm:p-8">
+    <section className="rounded-[24px] border border-[#ead6ca] bg-white/94 p-6 shadow-[0_18px_42px_rgba(88,57,38,0.08)] sm:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl space-y-3">
-          <p className="text-xs uppercase tracking-[0.28em] text-[#ffb089]">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#ef744b]">
             Session Management
           </p>
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-white">
+          <h2 className="text-[1.7rem] font-semibold tracking-[-0.04em] text-[#1d243f]">
             Active device sessions
           </h2>
-          <p className="text-sm leading-7 text-white/58">
+          <p className="text-[0.95rem] leading-7 text-[#6f7585]">
             Each login creates a separate refresh-token session. Access tokens rotate every
             10 minutes, while refresh tokens remain valid for up to 15 days unless you revoke
             them here or log out.
@@ -45,7 +48,7 @@ export default function SessionManager({
             <input type="hidden" name="_csrf" value={csrfToken} />
             <button
               type="submit"
-              className="inline-flex rounded-2xl border border-white/12 bg-white/4 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/8"
+              className="inline-flex rounded-2xl border border-[#ead6ca] bg-[#fff8f3] px-5 py-3 text-sm font-semibold text-[#526077] transition hover:bg-white"
             >
               Sign Out Other Devices
             </button>
@@ -54,7 +57,7 @@ export default function SessionManager({
       </div>
 
       {notice ? (
-        <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        <div className="mt-6 rounded-[16px] border border-[#b7dfc6] bg-[#eef9f1] px-4 py-3 text-sm text-[#2d7350]">
           {notice}
         </div>
       ) : null}
@@ -63,26 +66,26 @@ export default function SessionManager({
         {sessions.map((session) => (
           <div
             key={session.id}
-            className="rounded-3xl border border-white/10 bg-[rgba(255,255,255,0.04)] p-5"
+            className="rounded-[20px] border border-[#eadfd7] bg-[#fffaf7] p-5"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-base font-semibold text-white">
-                    {session.userAgent}
+                  <p className="text-base font-semibold text-[#1d243f]">
+                    {getSessionLabel(session.current)}
                   </p>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-medium ${
                       session.current
-                        ? "bg-emerald-500/16 text-emerald-100"
-                        : "bg-white/8 text-white/62"
+                        ? "bg-[#eef9f1] text-[#2d7350]"
+                        : "bg-[#f5ede8] text-[#6f7585]"
                     }`}
                   >
                     {session.current ? "Current session" : "Active"}
                   </span>
                 </div>
 
-                <div className="grid gap-3 text-sm text-white/58 sm:grid-cols-3">
+                <div className="grid gap-3 text-sm text-[#6f7585] sm:grid-cols-3">
                   <p>Signed in: {formatDate(session.createdAt)}</p>
                   <p>Last used: {formatDate(session.lastUsedAt)}</p>
                   <p>Expires: {formatDate(session.expiresAt)}</p>
@@ -95,7 +98,7 @@ export default function SessionManager({
                   <input type="hidden" name="sessionId" value={session.id} />
                   <button
                     type="submit"
-                    className="inline-flex rounded-2xl border border-[#ff885f]/35 bg-[#ff885f]/10 px-4 py-2.5 text-sm font-semibold text-[#ffd4c4] transition hover:bg-[#ff885f]/18"
+                    className="inline-flex rounded-2xl border border-[#efb697] bg-[#fff0e6] px-4 py-2.5 text-sm font-semibold text-[#9c4f2e] transition hover:bg-[#ffe7d8]"
                   >
                     Revoke Session
                   </button>

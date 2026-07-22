@@ -34,7 +34,7 @@ export const primaryNavItems: UserNavItem[] = [
 
 export const supportNavItems: UserNavItem[] = [
   {
-    href: "/settings",
+    href: "/user/settings",
     label: "Settings",
     shortLabel: "S",
     caption: "Dark mode, 2FA",
@@ -47,5 +47,5 @@ export const sectionTitles: Record<string, string> = {
   "/user/message": "Messages",
   "/user/friends": "Friends",
   "/user/search": "Search",
-  "/settings": "Settings",
+  "/user/settings": "Settings",
 };

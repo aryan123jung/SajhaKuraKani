@@ -1,58 +1,55 @@
-import { getAdminUsers } from "@/lib/api/admin";
+import { getAdminPosts } from "@/lib/api/admin";
 import { getCsrfToken } from "@/lib/csrf";
 import AdminPageHeader from "../_components/AdminPageHeader";
 import AdminPagination from "../_components/AdminPagination";
+import AdminPostsTable from "../_components/AdminPostsTable";
 import AdminReauthPanel from "../_components/AdminReauthPanel";
-import AdminUsersTable from "../_components/AdminUsersTable";
 
-type AdminUsersPageProps = {
+type AdminPostsPageProps = {
   searchParams: Promise<{
     page?: string;
     search?: string;
   }>;
 };
 
-export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
+export default async function AdminPostsPage({ searchParams }: AdminPostsPageProps) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? "1") || 1);
   const search = params.search?.trim() || undefined;
   const csrfToken = await getCsrfToken();
-  const response = await getAdminUsers({
+  const response = await getAdminPosts({
     page,
-    size: 20,
+    size: 12,
     search,
   });
-  const users = response.data.data;
+  const posts = response.data.data;
   const pagination = response.data.pagination;
-  const bannedCount = users.filter((user) => user.isBanned).length;
-  const suspendedCount = users.filter((user) => {
-    const value = user.suspendedUntil;
-    return Boolean(value) && new Date(value as string).getTime() > Date.now();
-  }).length;
+  const hiddenCount = posts.filter((post) => post.hiddenByAdmin).length;
+  const mediaCount = posts.reduce((sum, post) => sum + post.media.length, 0);
 
   return (
     <div className="space-y-4">
       <AdminReauthPanel csrfToken={csrfToken} />
 
       <AdminPageHeader
-        eyebrow="Users"
-        title="Browse users page by page and open each profile in a popup"
-        description="This view is now focused on paginated user browsing. Open a user card to inspect the profile, then suspend, ban, revoke sessions, or delete only after your admin re-verification is unlocked."
+        eyebrow="Posts"
+        title="Review published posts in a separate moderation queue"
+        description="Browse post cards page by page, open the full post in a popup, and remove unsafe content without mixing it into the users panel."
         stats={[
-          { label: "Loaded", value: users.length },
+          { label: "Loaded", value: posts.length },
           { label: "Total matches", value: pagination.total },
-          { label: "Banned in page", value: bannedCount },
-          { label: "Suspended in page", value: suspendedCount },
+          { label: "Hidden in page", value: hiddenCount },
+          { label: "Media items", value: mediaCount },
         ]}
       />
 
       <section className="rounded-[24px] border border-[#ead6ca] bg-white/92 p-5 shadow-[0_18px_42px_rgba(88,57,38,0.08)]">
-        <form action="/admin/users" className="mt-4 flex flex-wrap gap-3">
+        <form action="/admin/posts" className="mt-4 flex flex-wrap gap-3">
           <input
             type="search"
             name="search"
             defaultValue={search}
-            placeholder="Search by name or username"
+            placeholder="Search by title, caption, username, or name"
             className="min-w-[280px] flex-1 rounded-[14px] border border-[#ead9ce] bg-[#fffdfa] px-4 py-3 text-sm text-[#1d243f] outline-none placeholder:text-[#ada4ad]"
           />
           <button
@@ -64,9 +61,9 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         </form>
       </section>
 
-      <AdminUsersTable csrfToken={csrfToken} users={users} />
+      <AdminPostsTable csrfToken={csrfToken} posts={posts} />
       <AdminPagination
-        basePath="/admin/users"
+        basePath="/admin/posts"
         page={pagination.page}
         size={pagination.size}
         total={pagination.total}

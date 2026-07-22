@@ -126,6 +126,43 @@ export type AdminUserRecord = AuthUser & {
   createdAt?: string;
 };
 
+export type AdminManagedPost = {
+  _id: string;
+  title?: string;
+  content?: string;
+  visibility: "public" | "private" | "friends-only";
+  commentCount?: number;
+  recentComments?: Array<{
+    _id: string;
+    content?: string;
+    createdAt: string;
+    author?: {
+      _id?: string;
+      firstName?: string;
+      lastName?: string;
+      username?: string;
+      profileUrl?: string | null;
+    } | null;
+  }>;
+  media: Array<{
+    url: string;
+    type: "image" | "video";
+    mimeType: string;
+  }>;
+  hiddenByAdmin?: boolean;
+  softDeletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  author?: {
+    _id?: string;
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    email?: string;
+    profileUrl?: string | null;
+  } | null;
+};
+
 export type AdminBanConfirmation = {
   confirmationId: string;
   expiresAt: string;
@@ -140,6 +177,12 @@ type ReportListQuery = {
 };
 
 type UserListQuery = {
+  page?: number;
+  size?: number;
+  search?: string;
+};
+
+type PostListQuery = {
   page?: number;
   size?: number;
   search?: string;
@@ -165,6 +208,72 @@ const buildQueryString = (params: Record<string, string | number | undefined>) =
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : "";
 };
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const resolveUploadedAssetUrl = (
+  value: string | null | undefined,
+  type: "profile" | "cover" | "post"
+) => {
+  if (!value) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    return API_BASE_URL ? `${API_BASE_URL}${value}` : value;
+  }
+
+  const normalizedFileName = value.replace(/^\/+/, "");
+  const assetPath =
+    type === "profile"
+      ? `/uploads/profile/${normalizedFileName}`
+      : type === "cover"
+        ? `/uploads/cover/${normalizedFileName}`
+        : normalizedFileName.startsWith("uploads/posts/")
+          ? `/${normalizedFileName}`
+          : normalizedFileName.startsWith("posts/")
+            ? `/uploads/${normalizedFileName}`
+            : normalizedFileName.startsWith("images/") || normalizedFileName.startsWith("videos/")
+              ? `/uploads/posts/${normalizedFileName}`
+              : `/uploads/posts/${normalizedFileName}`;
+
+  return API_BASE_URL ? `${API_BASE_URL}${assetPath}` : assetPath;
+};
+
+const normalizeAdminUserRecord = (user: AdminUserRecord): AdminUserRecord => ({
+  ...user,
+  profileUrl: resolveUploadedAssetUrl(user.profileUrl, "profile"),
+  coverUrl: resolveUploadedAssetUrl(user.coverUrl, "cover"),
+});
+
+const normalizeAdminManagedPost = (post: AdminManagedPost): AdminManagedPost => ({
+  ...post,
+  media: post.media.map((media) => ({
+    ...media,
+    url: resolveUploadedAssetUrl(media.url, "post") || media.url,
+  })),
+  recentComments: post.recentComments?.map((comment) => ({
+    ...comment,
+    author: comment.author
+      ? {
+          ...comment.author,
+          profileUrl: resolveUploadedAssetUrl(comment.author.profileUrl, "profile"),
+        }
+      : comment.author,
+  })),
+  author: post.author
+    ? {
+        ...post.author,
+        profileUrl: resolveUploadedAssetUrl(post.author.profileUrl, "profile"),
+      }
+    : post.author,
+});
 
 const getSafeAdminErrorMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error)) {
@@ -278,9 +387,37 @@ export async function getAdminUsers(query: UserListQuery = {}) {
       })}`
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: {
+        ...response.data.data,
+        data: response.data.data.data.map(normalizeAdminUserRecord),
+      },
+    };
   } catch (error) {
     throw new Error(getSafeAdminErrorMessage(error, "Unable to load admin users right now."));
+  }
+}
+
+export async function getAdminPosts(query: PostListQuery = {}) {
+  try {
+    const response = await axiosInstance.get<ApiResponse<PaginatedPayload<AdminManagedPost>>>(
+      `/api/admin/posts${buildQueryString({
+        page: query.page ?? 1,
+        size: query.size ?? 12,
+        search: query.search?.trim() || undefined,
+      })}`
+    );
+
+    return {
+      ...response.data,
+      data: {
+        ...response.data.data,
+        data: response.data.data.data.map(normalizeAdminManagedPost),
+      },
+    };
+  } catch (error) {
+    throw new Error(getSafeAdminErrorMessage(error, "Unable to load admin posts right now."));
   }
 }
 

@@ -1,4 +1,5 @@
 import { getAdminHealth, getAdminSecurityAlerts } from "@/lib/api/admin";
+import AdminPageHeader from "../_components/AdminPageHeader";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString("en-US", {
@@ -14,9 +15,23 @@ export default async function AdminSecurityPage() {
     getAdminHealth(),
     getAdminSecurityAlerts(),
   ]);
+  const criticalAlerts = alertsResponse.data.filter((alert) => alert.severity === "critical").length;
+  const highAlerts = alertsResponse.data.filter((alert) => alert.severity === "high").length;
 
   return (
     <div className="space-y-4">
+      <AdminPageHeader
+        eyebrow="Security"
+        title="Suspicious admin access and system exposure"
+        description="Use this page to inspect network violations, unusual admin behavior, and infrastructure signals without mixing them into operational moderation queues."
+        stats={[
+          { label: "Alerts", value: alertsResponse.data.length },
+          { label: "Critical", value: criticalAlerts },
+          { label: "High", value: highAlerts },
+          { label: "Rate limit", value: healthResponse.data.adminActionRateLimit },
+        ]}
+      />
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           {

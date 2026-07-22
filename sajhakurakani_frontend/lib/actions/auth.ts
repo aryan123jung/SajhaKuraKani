@@ -189,6 +189,8 @@ export async function completeTotpLoginAction(
     await clearTwoFactorPreAuthToken();
     redirect(getPostAuthRedirectPath(response.data.role));
   } catch (error) {
+    unstable_rethrow(error);
+
     return {
       success: false,
       message:
