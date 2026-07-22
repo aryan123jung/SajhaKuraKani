@@ -235,7 +235,13 @@ export default function TopNavbar({
             aria-label="Notifications"
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#ecd7ca] bg-white/80 text-base text-[#1d243f] transition hover:bg-white"
           >
-            ◔
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-[17px] w-[17px] fill-current"
+            >
+              <path d="M12 3.75a4.9 4.9 0 0 0-4.9 4.9v2.03c0 .64-.2 1.27-.57 1.79L5.1 14.5a1.3 1.3 0 0 0 1.05 2.08h11.7a1.3 1.3 0 0 0 1.05-2.08l-1.43-2.03a3.1 3.1 0 0 1-.57-1.79V8.65A4.9 4.9 0 0 0 12 3.75Zm0 16.5a2.53 2.53 0 0 0 2.33-1.55h-4.66A2.53 2.53 0 0 0 12 20.25Z" />
+            </svg>
           </Link>
         </div>
       </div>

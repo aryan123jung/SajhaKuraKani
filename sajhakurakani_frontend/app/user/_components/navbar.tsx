@@ -46,7 +46,7 @@ export default function Navbar({
       />
 
       <div
-        className={`fixed left-0 top-[64px] z-50 h-[calc(100vh-64px)] w-[250px] max-w-[calc(100vw-1rem)] px-3 pb-3 pt-2 transition duration-300 sm:px-4 ${
+        className={`fixed left-0 top-0 z-[60] h-screen w-[280px] max-w-[100vw] transition duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!sidebarOpen}

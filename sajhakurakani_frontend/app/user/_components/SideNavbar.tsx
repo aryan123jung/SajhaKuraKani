@@ -24,10 +24,23 @@ export default function SideNavbar({
     : "SK";
 
   return (
-    <aside className="flex h-full flex-col rounded-[24px] border border-[#ead6ca] bg-white/94 p-4 shadow-[0_18px_42px_rgba(88,57,38,0.08)] backdrop-blur">
-      <div className="flex items-center gap-3 rounded-[18px] border border-[#efe2d9] bg-[#fffaf6] p-3">
-        <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-sm font-semibold text-white">
-          {initials}
+    <aside className="flex h-full flex-col border-r border-[#ead6ca] bg-white/96 p-4 shadow-[10px_0_28px_rgba(88,57,38,0.08)] backdrop-blur">
+      <Link
+        href="/user/profile"
+        onClick={onNavigate}
+        className="flex items-center gap-3 rounded-[18px] border border-[#efe2d9] bg-[#fffaf6] p-3 transition hover:bg-white"
+      >
+        <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-sm font-semibold text-white">
+          {user?.profileUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.profileUrl}
+              alt={fullName}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            initials
+          )}
         </div>
         <div className="min-w-0">
           <p className="truncate text-[0.98rem] font-semibold text-[#1d243f]">
@@ -37,6 +50,14 @@ export default function SideNavbar({
             {user?.email ?? "Protected account"}
           </p>
         </div>
+      </Link>
+
+      <div className="mt-4 flex items-center gap-3">
+        <div className="h-px flex-1 bg-[#efe2d9]" />
+        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#9a93a0]">
+          Main Menu
+        </span>
+        <div className="h-px flex-1 bg-[#efe2d9]" />
       </div>
 
       <nav className="mt-4 space-y-2">
@@ -113,7 +134,15 @@ export default function SideNavbar({
         })}
       </div>
 
-      <form action={logoutAction} className="mt-auto pt-4">
+      <form
+        action={logoutAction}
+        className="mt-auto pt-4"
+        onSubmit={(event) => {
+          if (!window.confirm("Are you sure you want to log out?")) {
+            event.preventDefault();
+          }
+        }}
+      >
         <input type="hidden" name="_csrf" value={csrfToken} />
         <button
           type="submit"

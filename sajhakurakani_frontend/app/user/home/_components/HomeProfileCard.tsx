@@ -55,6 +55,7 @@ type HomeProfileCardProps = {
   fullName: string;
   username: string;
   email: string;
+  profileUrl?: string | null;
 };
 
 export default function HomeProfileCard({
@@ -62,14 +63,20 @@ export default function HomeProfileCard({
   fullName,
   username,
   email,
+  profileUrl,
 }: HomeProfileCardProps) {
   return (
     <section className="w-full rounded-2xl border border-[#edd8cb] bg-white/95 p-4 shadow-md">
       {/* Top Section - Avatar & Info */}
       <div className="flex items-center gap-3 mb-3">
         {/* Avatar */}
-        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d243f] text-sm font-bold text-white">
-          {initials}
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1d243f] text-sm font-bold text-white">
+          {profileUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profileUrl} alt={fullName} className="h-full w-full object-cover" />
+          ) : (
+            initials
+          )}
         </span>
 
         {/* Profile Info */}

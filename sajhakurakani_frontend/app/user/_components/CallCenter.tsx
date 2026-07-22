@@ -43,6 +43,7 @@ declare global {
 }
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost:5050";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const ACTIVE_CALL_SYNC_INTERVAL_MS = 3000;
 const ICE_SERVERS: RTCIceServer[] = [
   {
@@ -79,6 +80,39 @@ const getInitials = (user?: Partial<CallParticipantProfile> | null) => {
 
   return "SK";
 };
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const normalizeParticipantProfile = (
+  user?: CallSession["otherUser"] | CallSession["caller"] | CallSession["callee"] | null
+) => {
+  if (!user || !("firstName" in user && "lastName" in user && "username" in user)) {
+    return user ?? null;
+  }
+
+  let profileUrl = user.profileUrl ?? null;
+
+  if (profileUrl && !isAbsoluteUrl(profileUrl)) {
+    if (profileUrl.startsWith("/uploads/")) {
+      profileUrl = API_BASE_URL ? `${API_BASE_URL}${profileUrl}` : profileUrl;
+    } else {
+      const assetPath = `/uploads/profile/${profileUrl.replace(/^\/+/, "")}`;
+      profileUrl = API_BASE_URL ? `${API_BASE_URL}${assetPath}` : assetPath;
+    }
+  }
+
+  return {
+    ...user,
+    profileUrl,
+  };
+};
+
+const normalizeCallSession = (call: CallSession): CallSession => ({
+  ...call,
+  caller: normalizeParticipantProfile(call.caller) ?? call.caller,
+  callee: normalizeParticipantProfile(call.callee) ?? call.callee,
+  otherUser: normalizeParticipantProfile(call.otherUser) ?? call.otherUser,
+});
 
 const isParticipantProfile = (
   user?: CallSession["otherUser"] | CallSession["caller"] | CallSession["callee"] | null
@@ -576,7 +610,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
         throw new Error(payload.message || "Unable to load the active call right now.");
       }
 
-      const syncedCall = payload.data ?? null;
+      const syncedCall = payload.data ? normalizeCallSession(payload.data) : null;
 
       if (!syncedCall) {
         if (
@@ -683,7 +717,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
         return;
       }
 
-      setIncomingCall(payload.call);
+      setIncomingCall(normalizeCallSession(payload.call));
       setCallState("incoming");
       setStatusMessage("");
       setCallError("");
@@ -694,7 +728,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
         return;
       }
 
-      setCurrentCall(payload.call);
+      setCurrentCall(normalizeCallSession(payload.call));
       setCallState("outgoing");
       setConnectionLabel("Ringing...");
     });
@@ -704,7 +738,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
         return;
       }
 
-      setCurrentCall(payload.call);
+      setCurrentCall(normalizeCallSession(payload.call));
       setCallState("connecting");
       setConnectionLabel("Connecting...");
     });
@@ -780,15 +814,16 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
           throw new Error(payload.message || "Unable to start the call right now.");
         }
 
-        setCurrentCall(payload.data.call);
+        const normalizedCall = normalizeCallSession(payload.data.call);
+        setCurrentCall(normalizedCall);
         setCallState("outgoing");
         setConnectionLabel("Ringing...");
 
         const stream = await prepareLocalStream(detail.callType);
-        const peerConnection = attachPeerConnection(payload.data.call, stream);
+        const peerConnection = attachPeerConnection(normalizedCall, stream);
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        await emitSignal("offer", offer, payload.data.call._id);
+        await emitSignal("offer", offer, normalizedCall._id);
       } catch (error) {
         clearCallUi(
           "",
@@ -838,11 +873,12 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
         throw new Error(payload.message || "Unable to accept the call right now.");
       }
 
+      const normalizedCall = normalizeCallSession(payload.data.call);
       const stream = await prepareLocalStream(activeIncomingCall.callType);
-      const peerConnection = attachPeerConnection(payload.data.call, stream);
+      const peerConnection = attachPeerConnection(normalizedCall, stream);
 
       setIncomingCall(null);
-      setCurrentCall(payload.data.call);
+      setCurrentCall(normalizedCall);
       setCallState("connecting");
       setConnectionLabel("Connecting...");
 
@@ -855,7 +891,7 @@ export default function CallCenter({ currentUser }: CallCenterProps) {
 
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
-      await emitSignal("answer", answer, payload.data.call._id);
+      await emitSignal("answer", answer, normalizedCall._id);
     } catch (error) {
       clearCallUi(
         "",

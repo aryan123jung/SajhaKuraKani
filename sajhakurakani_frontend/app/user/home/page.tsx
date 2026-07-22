@@ -148,6 +148,7 @@ export default async function UserHomePage() {
           fullName={fullName}
           username={username}
           email={email}
+          profileUrl={user?.profileUrl ?? null}
         />
         <HomeAssistantCard firstName={firstName} />
       </aside>

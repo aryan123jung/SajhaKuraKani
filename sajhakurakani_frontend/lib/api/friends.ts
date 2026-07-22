@@ -30,6 +30,46 @@ type ApiResponse<T> = {
   data: T;
 };
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const resolveUploadedProfileUrl = (value: string | null | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    return API_BASE_URL ? `${API_BASE_URL}${value}` : value;
+  }
+
+  const assetPath = `/uploads/profile/${value.replace(/^\/+/, "")}`;
+  return API_BASE_URL ? `${API_BASE_URL}${assetPath}` : assetPath;
+};
+
+const normalizeFriendProfile = (friend: FriendProfile): FriendProfile => ({
+  ...friend,
+  profileUrl: resolveUploadedProfileUrl(friend.profileUrl),
+});
+
+const normalizeFriendOverview = (overview: FriendOverview): FriendOverview => ({
+  ...overview,
+  friends: overview.friends.map(normalizeFriendProfile),
+  incomingRequests: overview.incomingRequests.map((request) => ({
+    ...request,
+    user: normalizeFriendProfile(request.user),
+  })),
+  outgoingRequests: overview.outgoingRequests.map((request) => ({
+    ...request,
+    user: normalizeFriendProfile(request.user),
+  })),
+  discoverUsers: overview.discoverUsers.map(normalizeFriendProfile),
+});
+
 const getSafeFriendErrorMessage = (error: unknown, fallback: string) => {
   if (!axios.isAxiosError(error)) {
     return error instanceof Error ? error.message : fallback;
@@ -65,7 +105,10 @@ export async function getFriendOverview(search?: string) {
       `/api/auth/friends${query}`
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: normalizeFriendOverview(response.data.data),
+    };
   } catch (error) {
     throw new Error(
       getSafeFriendErrorMessage(error, "Unable to load your friends right now.")

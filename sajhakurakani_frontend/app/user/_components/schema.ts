@@ -37,7 +37,7 @@ export const supportNavItems: UserNavItem[] = [
     href: "/user/settings",
     label: "Settings",
     shortLabel: "S",
-    caption: "Dark mode, 2FA",
+    caption: "2FA, sessions",
   },
 ];
 

@@ -53,6 +53,49 @@ type PaginatedApiResponse<T> = ApiResponse<T[]> & {
   };
 };
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const resolveUploadedProfileUrl = (value: string | null | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    return API_BASE_URL ? `${API_BASE_URL}${value}` : value;
+  }
+
+  const assetPath = `/uploads/profile/${value.replace(/^\/+/, "")}`;
+  return API_BASE_URL ? `${API_BASE_URL}${assetPath}` : assetPath;
+};
+
+const normalizeMessageUserProfile = (user: MessageUserProfile): MessageUserProfile => ({
+  ...user,
+  profileUrl: resolveUploadedProfileUrl(user.profileUrl),
+});
+
+const normalizeConversationSummary = (
+  conversation: MessageConversationSummary
+): MessageConversationSummary => ({
+  ...conversation,
+  otherUser: normalizeMessageUserProfile(conversation.otherUser),
+});
+
+const normalizeConversationThread = (
+  thread: ConversationThread
+): ConversationThread => ({
+  ...thread,
+  conversation: {
+    ...thread.conversation,
+    otherUser: normalizeMessageUserProfile(thread.conversation.otherUser),
+  },
+});
+
 const getSafeMessageError = (
   error: unknown,
   fallback: string,
@@ -112,7 +155,10 @@ export async function getMessageConversations(search?: string, page = 1, size = 
       `/api/messages/conversations?${params.toString()}`
     );
 
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data.map(normalizeConversationSummary),
+    };
   } catch (error) {
     throw new Error(
       getSafeMessageError(
@@ -142,7 +188,12 @@ export async function getConversationMessages(friendUserId: string, page = 1, si
       }
     >(`/api/messages/conversations/${encodeURIComponent(friendUserId)}?${params.toString()}`);
 
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data
+        ? normalizeConversationThread(response.data.data)
+        : response.data.data,
+    };
   } catch (error) {
     throw new Error(
       getSafeMessageError(
@@ -184,7 +235,15 @@ export async function markConversationRead(friendUserId: string) {
       }>
     >(`/api/messages/conversations/${encodeURIComponent(friendUserId)}/read`);
 
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data
+        ? {
+            ...response.data.data,
+            otherUser: normalizeMessageUserProfile(response.data.data.otherUser),
+          }
+        : response.data.data,
+    };
   } catch (error) {
     throw new Error(
       getSafeMessageError(error, "Unable to update this conversation right now.", "read")

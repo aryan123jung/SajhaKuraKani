@@ -124,9 +124,18 @@ export default function HomeMessagesCard({
                 <div className="flex items-start gap-3">
                   {/* Avatar with Status Indicator */}
                   <div className="relative">
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2a3a52] to-[#1d243f] text-sm font-bold text-white shadow-md">
-                      {`${conversation.otherUser.firstName[0] ?? ""}${conversation.otherUser.lastName[0] ?? ""}`.toUpperCase() ||
-                        conversation.otherUser.username.slice(0, 2).toUpperCase()}
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#2a3a52] to-[#1d243f] text-sm font-bold text-white shadow-md">
+                      {conversation.otherUser.profileUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={conversation.otherUser.profileUrl}
+                          alt={`${conversation.otherUser.firstName} ${conversation.otherUser.lastName}`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        `${conversation.otherUser.firstName[0] ?? ""}${conversation.otherUser.lastName[0] ?? ""}`.toUpperCase() ||
+                        conversation.otherUser.username.slice(0, 2).toUpperCase()
+                      )}
                     </span>
                     <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-[#38a89d] border-2 border-white shadow-sm"></div>
                   </div>
