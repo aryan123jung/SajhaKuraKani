@@ -55,7 +55,6 @@ const adminActionConfirmationSchema = new Schema<IAdminActionConfirmation>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
   },
   {

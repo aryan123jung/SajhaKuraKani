@@ -164,7 +164,9 @@ export class UserRepository implements IUserRepository{
     async getAllusers(
         page: number, size: number, search?: string
     ): Promise<{users: IUser[], total: number}> {
-        const filter: QueryFilter<IUser> = {};
+        const filter: QueryFilter<IUser> = {
+            role: "user" as any,
+        };
         if (search) {
             filter.$or = [
                 ...buildUserSearchConditions(search),

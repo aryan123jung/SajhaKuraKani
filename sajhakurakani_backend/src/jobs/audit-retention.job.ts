@@ -5,7 +5,6 @@ import {
 import { CallAuditModel } from "../models/call-audit.model";
 import { DirectMessageAuditModel } from "../models/direct-message-audit.model";
 import { FriendRequestAuditModel } from "../models/friend-request-audit.model";
-import { AdminAuditLogModel } from "../models/admin/admin-audit-log.model";
 import { FriendRequestReportModel } from "../models/friend-request-report.model";
 import { PostCommentReportModel } from "../models/post-comment-report.model";
 import { PostInteractionAuditModel } from "../models/post-interaction-audit.model";
@@ -20,7 +19,6 @@ export const runAuditRetentionCleanup = async () => {
 
   const [
     callAuditResult,
-    adminAuditResult,
     directMessageAuditResult,
     friendRequestAuditResult,
     friendRequestReportResult,
@@ -30,9 +28,6 @@ export const runAuditRetentionCleanup = async () => {
   ] =
     await Promise.all([
       CallAuditModel.deleteMany({
-        createdAt: { $lt: cutoffDate },
-      }),
-      AdminAuditLogModel.deleteMany({
         createdAt: { $lt: cutoffDate },
       }),
       DirectMessageAuditModel.deleteMany({
@@ -66,7 +61,7 @@ export const runAuditRetentionCleanup = async () => {
       retentionDays: AUDIT_LOG_RETENTION_DAYS,
       deleted: {
         callAudits: callAuditResult.deletedCount ?? 0,
-        adminAudits: adminAuditResult.deletedCount ?? 0,
+        adminAudits: 0,
         directMessageAudits: directMessageAuditResult.deletedCount ?? 0,
         friendRequestAudits: friendRequestAuditResult.deletedCount ?? 0,
         friendRequestReports: friendRequestReportResult.deletedCount ?? 0,

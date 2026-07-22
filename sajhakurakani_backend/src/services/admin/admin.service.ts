@@ -33,6 +33,7 @@ import { AdminSecurityAlertRepository } from "../../repositories/admin/admin-sec
 import { AuthSessionRepository } from "../../repositories/auth-session.repository";
 import { decryptText, encryptText } from "../../utils/crypto.util";
 import { verifyTotpCode } from "../../utils/totp.util";
+import { decryptProtectedText, serializePostsForResponse } from "../../utils/post-data-protection.util";
 import {
   assertAdminUser,
   detectSuspiciousAdminBurst,
@@ -536,6 +537,119 @@ export class AdminService {
         delete payload.resetPasswordTokenHash;
         return payload;
       }),
+      pagination: { page: query.page, size: query.size, total },
+    };
+  }
+
+  async listPosts(admin: IUser, query: { search?: string; page: number; size: number }) {
+    assertAdminUser(admin);
+    const skip = (query.page - 1) * query.size;
+    const trimmedSearch = query.search?.trim();
+
+    const postFilter: Record<string, unknown> = {
+      $or: [{ softDeletedAt: { $exists: false } }, { softDeletedAt: null }],
+    };
+
+    if (trimmedSearch) {
+      const matchedUsers = await UserModel.find({
+        $or: [
+          { username: { $regex: trimmedSearch, $options: "i" } },
+          { firstName: { $regex: trimmedSearch, $options: "i" } },
+          { lastName: { $regex: trimmedSearch, $options: "i" } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ["$firstName", " ", "$lastName"] },
+                regex: trimmedSearch,
+                options: "i",
+              },
+            },
+          },
+        ],
+      }).select("_id");
+
+      const authorIds = matchedUsers.map((user) => user._id);
+      const contentRegex = new RegExp(trimmedSearch, "i");
+
+      postFilter.$and = [
+        {
+          $or: [
+            { title: { $regex: contentRegex } },
+            { content: { $regex: contentRegex } },
+            { author: { $in: authorIds } },
+          ],
+        },
+      ];
+    }
+
+    const [posts, total] = await Promise.all([
+      PostModel.find(postFilter)
+        .populate("author", "firstName lastName username email profileUrl")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(query.size),
+      PostModel.countDocuments(postFilter),
+    ]);
+
+    const postIds = posts.map((post) => post._id);
+    const [commentCounts, recentComments] = await Promise.all([
+      PostCommentModel.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+        {
+          $match: {
+            post: { $in: postIds },
+            isDeleted: false,
+            hiddenByAdmin: false,
+          },
+        },
+        { $group: { _id: "$post", count: { $sum: 1 } } },
+      ]),
+      PostCommentModel.find({
+        post: { $in: postIds },
+        isDeleted: false,
+        hiddenByAdmin: false,
+      })
+        .populate("author", "firstName lastName username profileUrl")
+        .sort({ createdAt: -1 })
+        .limit(Math.max(postIds.length * 3, 12)),
+    ]);
+
+    const commentCountMap = new Map(
+      commentCounts.map((item) => [item._id.toString(), item.count])
+    );
+    const recentCommentsMap = new Map<string, Array<Record<string, unknown>>>();
+
+    recentComments.forEach((comment) => {
+      const key = comment.post.toString();
+      const currentList = recentCommentsMap.get(key) ?? [];
+      if (currentList.length >= 3) {
+        return;
+      }
+
+      const serializedComment = comment.toObject() as unknown as Record<string, unknown>;
+      serializedComment.content =
+        comment.content ?? decryptProtectedText(comment.contentEncrypted) ?? undefined;
+      delete serializedComment.contentEncrypted;
+      delete serializedComment.contentHash;
+      delete serializedComment.duplicateFingerprint;
+
+      currentList.push(serializedComment);
+      recentCommentsMap.set(key, currentList);
+    });
+
+    const serializedPosts = serializePostsForResponse(posts).map((post) => ({
+      ...post,
+      commentCount: commentCountMap.get(String(post._id)) ?? 0,
+      recentComments: recentCommentsMap.get(String(post._id)) ?? [],
+      author: post.author && typeof post.author === "object"
+        ? {
+            ...(post.author as Record<string, unknown>),
+            email: maskEmail(String((post.author as Record<string, unknown>).email ?? "")),
+          }
+        : post.author,
+    }));
+
+    return {
+      data: serializedPosts,
       pagination: { page: query.page, size: query.size, total },
     };
   }

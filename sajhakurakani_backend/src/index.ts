@@ -64,7 +64,7 @@ async function startServer(){
                 console.warn("HTTPS: LOCAL_HTTPS is enabled but certificate files were not found. Falling back to HTTP.");
             }
             console.log(
-                `Audit retention: ${AUDIT_LOG_RETENTION_DAYS}-day cleanup policy is active for persistent audit logs and resolved reports`
+                `Audit retention: ${AUDIT_LOG_RETENTION_DAYS}-day cleanup policy is active for operational audit tables and resolved reports; admin audit logs remain immutable`
             );
             console.log(`Server: ${useLocalHttps ? "https" : "http"}://localhost:${PORT}`);
         }

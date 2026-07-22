@@ -19,6 +19,10 @@ const adminUserQuerySchema = paginationSchema.extend({
   search: z.string().trim().max(120).optional(),
 });
 
+const adminPostQuerySchema = paginationSchema.extend({
+  search: z.string().trim().max(160).optional(),
+});
+
 const auditQuerySchema = paginationSchema.extend({
   adminUserId: z.string().trim().optional(),
   action: z.string().trim().optional(),
@@ -132,6 +136,19 @@ export class AdminController {
       }
       const data = await adminService.searchUsers(req.user!, parsed.data);
       return res.status(200).json({ success: true, data, message: "Users fetched successfully" });
+    } catch (error: Error | any) {
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
+    }
+  }
+
+  async listPosts(req: Request, res: Response) {
+    try {
+      const parsed = adminPostQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, message: z.prettifyError(parsed.error) });
+      }
+      const data = await adminService.listPosts(req.user!, parsed.data);
+      return res.status(200).json({ success: true, data, message: "Posts fetched successfully" });
     } catch (error: Error | any) {
       return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
     }

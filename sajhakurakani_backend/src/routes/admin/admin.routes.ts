@@ -49,6 +49,7 @@ router.post(
 );
 
 router.get("/users", requireAdminPermission("users.read"), adminController.searchUsers.bind(adminController));
+router.get("/posts", requireAdminPermission("content.delete"), adminController.listPosts.bind(adminController));
 router.post(
   "/users/:id/suspend",
   adminActionRateLimiter,
